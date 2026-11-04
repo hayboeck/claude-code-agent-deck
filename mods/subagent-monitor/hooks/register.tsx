@@ -508,6 +508,9 @@ export const register: Register = on => {
       ? [`nächster Ping in ${nextIn}min`, `${w.pings}/${MAX_PINGS}`, last].filter(Boolean).join(' · ')
       : last
 
+    // Leichter Trennstrich zwischen den Blöcken unten (gepunktet und blass, der obere bleibt durchgezogen).
+    const lightRule = <Text dimColor wrap="truncate-end">{'┈'.repeat(Math.max(10, cols))}</Text>
+
     // Mindestens so hoch wie das Panel, damit die Liste wächst und Sitzung und Limits unten stehen.
     const minHeight = e.props.scroll.bodyRows
 
@@ -533,17 +536,21 @@ export const register: Register = on => {
             {info}
             {windows.length ? (
               <Box flexDirection="column" marginTop={info ? 1 : 0}>
+                {info ? lightRule : null}
                 <Text bold>Nutzungslimits</Text>
                 {windows.map(limit)}
               </Box>
             ) : null}
             <Box flexDirection="column" marginTop={1}>
+              {lightRule}
               <Box flexDirection="row" gap={1}>
                 <Box flexGrow={1} flexShrink={1} minWidth={0}>
                   <Text>Cache warmhalten</Text>
                 </Box>
-                <Button key="warm" variant={w.on ? 'primary' : 'secondary'} onPress={() => undefined}>
-                  {w.on ? 'an' : 'aus'}
+                <Button key="warm" onPress={() => undefined}>
+                  <Text color={w.on ? 'success' : 'error'} bold>
+                    {w.on ? 'an' : 'aus'}
+                  </Text>
                 </Button>
               </Box>
               {warmText ? <Text dimColor wrap="truncate-end">{warmText}</Text> : null}
