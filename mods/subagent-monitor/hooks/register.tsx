@@ -517,10 +517,11 @@ export const register: Register = (on, options) => {
             </Box>
             <Text dimColor={!live}>{time}</Text>
           </Box>
-          <Box paddingLeft={2} flexDirection="row" gap={1} alignItems="center">
-            <Box flexGrow={1} flexShrink={1} minWidth={0}>
-              <Text dimColor wrap="truncate-end">{second}</Text>
-            </Box>
+          <Box paddingLeft={2}>
+            <Text dimColor wrap="truncate-end">{second}</Text>
+          </Box>
+          {/* The buttons sit on their own line right below, with no gap. */}
+          <Box paddingLeft={2} flexDirection="row" gap={1}>
             {history.length ? (
               <Button key={`steps-${a.id}`} plain onPress={() => undefined}>
                 {`${isOpen ? '▾' : '▸'} ${w.stepsBtn}`}
