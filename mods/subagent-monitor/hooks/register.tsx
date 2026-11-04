@@ -442,8 +442,7 @@ export const register: Register = on => {
             )
           : null}
         {ctxPct !== undefined ? bar(ctxPct, 'Kontext') : null}
-        {pair('in', 'Eingabe gesamt', `${tokens(s.input)} (Cache ${tokens(s.cacheRead)})`)}
-        {pair('out', 'Ausgabe gesamt', tokens(s.output))}
+        {pair('used', 'Tokenverbrauch', tokens(s.input + s.output))}
       </Box>
     ) : null
 
