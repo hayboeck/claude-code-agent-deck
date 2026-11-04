@@ -56,7 +56,7 @@ Answer `y` to add the marketplace, press Enter for the user scope, then pick the
 
 Claude Code keeps your chat in Anthropic's prompt cache for 60 minutes after the last request. When the cache has expired, the next message has to read the whole chat in again, which costs far more of your limits than a message on a warm cache.
 
-With the button on **On** (green background; red **Off** means switched off), the mod waits for 50 minutes of quiet and then sends one invisible ping: the chat as Claude Code last sent it plus the line "Reply only with: OK", with no tools. It does not appear in your chat. Reading the chat from the cache restarts the cache's 60 minutes. Every real message resets the countdown too.
+With the switch **On** (shown in green; red **Off** means switched off; the button beside it says *Turn on* or *Turn off*), the mod waits for 50 minutes of quiet and then sends one invisible ping: the chat as Claude Code last sent it plus the line "Reply only with: OK", with no tools. It does not appear in your chat. Reading the chat from the cache restarts the cache's 60 minutes. Every real message resets the countdown too.
 
 - **At most 5 pings in a row** (about 4 hours of quiet), then it switches itself off, so it never runs all night.
 - **Cost, measured:** on a chat with a 258k context, 5 pings moved the 5-hour limit by at most one percentage point, and the weekly limit not at all. A cache read costs about a tenth of reading the same text fresh.

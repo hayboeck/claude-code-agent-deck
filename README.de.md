@@ -56,7 +56,7 @@ Mit `y` die Mod-Sammlung hinzufügen, mit Enter den Bereich „user“ wählen u
 
 Claude Code hält deinen Chat 60 Minuten nach der letzten Anfrage im Prompt-Cache von Anthropic. Ist der Cache abgelaufen, muss die nächste Nachricht den ganzen Chat neu einlesen. Das kostet viel mehr von deinen Limits als eine Nachricht bei warmem Cache.
 
-Steht der Knopf auf **An** (grün hinterlegt; rot **Aus** heißt ausgeschaltet), wartet die Mod 50 Minuten Ruhe ab und schickt dann einen unsichtbaren Ping: den Chat, wie Claude Code ihn zuletzt gesendet hat, plus die Zeile „Antworte nur mit: OK“, ohne Werkzeuge. Im Chat erscheint nichts. Weil der Chat dabei aus dem Cache gelesen wird, beginnen dessen 60 Minuten von vorn. Jede echte Nachricht setzt den Countdown ebenfalls zurück.
+Steht es auf **An** (grün angezeigt; rot **Aus** heißt ausgeschaltet; der Knopf daneben sagt *Einschalten* oder *Ausschalten*), wartet die Mod 50 Minuten Ruhe ab und schickt dann einen unsichtbaren Ping: den Chat, wie Claude Code ihn zuletzt gesendet hat, plus die Zeile „Antworte nur mit: OK“, ohne Werkzeuge. Im Chat erscheint nichts. Weil der Chat dabei aus dem Cache gelesen wird, beginnen dessen 60 Minuten von vorn. Jede echte Nachricht setzt den Countdown ebenfalls zurück.
 
 - **Höchstens 5 Pings in Folge** (etwa 4 Stunden Ruhe), dann schaltet es sich selbst aus, damit es nie über Nacht läuft.
 - **Kosten, gemessen:** Bei einem Chat mit 258k Kontext haben 5 Pings das 5-Stunden-Limit um höchstens einen Prozentpunkt bewegt, das Wochenlimit gar nicht. Aus dem Cache lesen kostet etwa ein Zehntel davon, denselben Text neu zu lesen.

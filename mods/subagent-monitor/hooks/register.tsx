@@ -72,6 +72,8 @@ const TEXT = {
     warm: 'Cache warmhalten',
     on: 'An',
     off: 'Aus',
+    turnOn: 'Einschalten',
+    turnOff: 'Ausschalten',
     nextPing: 'nächster Ping in',
     lastPing: 'letzter Ping',
   },
@@ -101,6 +103,8 @@ const TEXT = {
     warm: 'Keep cache warm',
     on: 'On',
     off: 'Off',
+    turnOn: 'Turn on',
+    turnOff: 'Turn off',
     nextPing: 'next ping in',
     lastPing: 'last ping',
   },
@@ -626,12 +630,14 @@ export const register: Register = (on, options) => {
               <Box flexGrow={1} flexShrink={1} minWidth={0}>
                 <Text>{w.warm}</Text>
               </Box>
-              {/* A Button takes no colour, so a Box behind it does: green while on, red while off. */}
-              <Box backgroundColor={wm.on ? GREEN : RED} paddingX={1}>
-                <Button key="warm" plain onPress={() => undefined}>
-                  {wm.on ? w.on : w.off}
-                </Button>
-              </Box>
+              {/* VS Code and the desktop draw every Button as their own native button, which takes no
+                  colour: the state stands in colour beside it, the button says what it does. */}
+              <Text color={wm.on ? GREEN : RED} bold>
+                {`● ${wm.on ? w.on : w.off}`}
+              </Text>
+              <Button key="warm" onPress={() => undefined}>
+                {wm.on ? w.turnOff : w.turnOn}
+              </Button>
             </Box>
             {warmText ? <Text dimColor wrap="truncate-end">{warmText}</Text> : null}
           </Box>
