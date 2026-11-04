@@ -76,7 +76,7 @@ function shortModel(m: string): string {
 }
 
 /** „in 2 h 14 min · So 8.11. 13:00“; die Uhrzeit in Wiener Zeit, falls die Umgebung Zeitzonen kennt. */
-function resetText(iso: string | undefined, t: number): string {
+function resetText(iso: string | undefined, t: number, withDate: boolean): string {
   if (!iso) return ''
   const at = Date.parse(iso)
   if (Number.isNaN(at)) return ''
@@ -87,11 +87,10 @@ function resetText(iso: string | undefined, t: number): string {
   const rel = d ? `in ${d} d ${h} h` : h ? `in ${h} h ${m} min` : `in ${m} min`
   let abs = ''
   try {
+    const date: Intl.DateTimeFormatOptions = withDate ? { weekday: 'short', day: 'numeric', month: 'numeric' } : {}
     abs = new Intl.DateTimeFormat('de-AT', {
       timeZone: 'Europe/Vienna',
-      weekday: 'short',
-      day: 'numeric',
-      month: 'numeric',
+      ...date,
       hour: '2-digit',
       minute: '2-digit',
     }).format(at)
@@ -294,7 +293,8 @@ export const register: Register = on => {
     const limit = (l: RateLimit) => {
       const pct = l.percentUsed
       const label = LIMIT_LABEL[l.kind] ?? l.kind
-      const reset = resetText(l.resetsAt, t)
+      // Das 5-h-Fenster endet immer heute oder morgen früh: Uhrzeit reicht.
+      const reset = resetText(l.resetsAt, t, l.kind !== 'five_hour')
       return (
         <Box key={`limit-${l.kind}`} flexDirection="column" marginTop={1}>
           <Box flexDirection="row" gap={1}>
@@ -313,9 +313,13 @@ export const register: Register = on => {
       )
     }
 
+    // Volle Höhe, Liste wächst, Limits bleiben am unteren Rand. Im Terminal zählt die Höhe in
+    // Zeilen; die grafischen Oberflächen legen in Pixeln an, dort füllt 100 % das Panel.
+    const height = e.surface === 'terminal' ? e.props.scroll.bodyRows : '100%'
+
     return (
-      <Box flexDirection="column" flexGrow={1}>
-        <Box flexDirection="column" flexGrow={1}>
+      <Box flexDirection="column" height={height}>
+        <Box flexDirection="column" flexGrow={1} flexShrink={1}>
         {list.length === 0 ?<Text dimColor>Noch keine Subagents in dieser Sitzung.</Text> : null}
         {running.length ? <Text bold>{`Laufend (${running.length})`}</Text> : null}
         {running.map(row)}

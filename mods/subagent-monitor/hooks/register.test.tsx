@@ -57,7 +57,8 @@ test('Limits erscheinen unten mit Prozent und Rücksetzzeit', async ($, on) => {
     const ui = await $.ui.mount({ ...PANE, surface })
     expect((await ui.find({ type: 'Text', text: /^Session/ }))?.text).toBe('Session (5 h)')
     expect((await ui.find({ type: 'Text', text: /^32/ }))?.text).toBe('32 %')
-    expect((await ui.find({ type: 'Text', text: /zurückgesetzt in 2 h 10 min/ }))).toBeDefined()
+    expect((await ui.find({ type: 'Text', text: /zurückgesetzt in 2 h 10 min/ }))?.text).toMatch(/^zurückgesetzt in 2 h 10 min( · 18:10)?$/)
+    expect((await ui.find({ type: 'Text', text: /zurückgesetzt in 3 d/ }))?.text).toMatch(/^zurückgesetzt in 3 d 21 h/)
     await ui.unmount()
   }
 })
