@@ -547,10 +547,12 @@ export const register: Register = on => {
                 <Box flexGrow={1} flexShrink={1} minWidth={0}>
                   <Text>Cache warmhalten</Text>
                 </Box>
+                {/* Ein Button nimmt keine Farbe an: der Zustand steht farbig daneben, grün an, rot aus. */}
+                <Text color={w.on ? 'success' : 'error'} bold>
+                  {w.on ? '● an' : '● aus'}
+                </Text>
                 <Button key="warm" onPress={() => undefined}>
-                  <Text color={w.on ? 'success' : 'error'} bold>
-                    {w.on ? 'an' : 'aus'}
-                  </Text>
+                  umschalten
                 </Button>
               </Box>
               {warmText ? <Text dimColor wrap="truncate-end">{warmText}</Text> : null}
