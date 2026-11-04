@@ -64,6 +64,33 @@ test('Limits erscheinen unten mit Prozent und Rücksetzzeit', async ($, on) => {
   }
 })
 
+test('Warmhalten pingt nach 50 min Ruhe einmal über einen Fork', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-11-04T15:00:00Z') })
+  const forks: string[] = []
+  on('command.register', () => ({ value: { command: 'subagents' } }))
+  on('agent.list', () => ({ value: [] }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.usage', () => ({
+    value: { startedAt: Date.parse('2026-11-04T14:00:00Z'), context: { window: 200000, tokens: 50000 }, rateLimits: [] },
+  }))
+  on('model.fork', (_, e) => {
+    forks.push(e.prompt)
+    return { value: { isAnswered: true, text: 'OK', usage: { input_tokens: 5, output_tokens: 2, cache_read_input_tokens: 50000, cache_creation_input_tokens: 0 } } }
+  })
+  await $.session.start({ cwd: '/', surface: 'vscode', isInteractive: true })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
+  await ui.press({ key: 'warm' })
+  expect((await ui.find({ type: 'Text', text: /nächster Ping/ }))?.text).toMatch(/^nächster Ping in 50min · 0\/5/)
+
+  await clock.advance(49 * 60_000)
+  expect(forks.length).toBe(0)
+  await clock.advance(2 * 60_000)
+  expect(forks.length).toBe(1)
+  expect((await ui.find({ type: 'Text', text: /letzter Ping/ }))?.text).toMatch(/1\/5 · letzter Ping .* ✓$/)
+  await ui.unmount()
+})
+
 test('leere Sitzung zeigt einen Hinweis', async ($, on) => {
   mock.clock(on)
   const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })

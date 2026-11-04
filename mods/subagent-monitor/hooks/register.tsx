@@ -15,6 +15,14 @@ const agents = atom({ plugin: 'subagent-monitor', key: 'agents' } as const, [], 
 const now = atom({ plugin: 'subagent-monitor', key: 'now' } as const, 0)
 const limits = atom({ plugin: 'subagent-monitor', key: 'limits' } as const, [], { shape: 'limits-1' })
 const session = atom({ plugin: 'subagent-monitor', key: 'session' } as const, null, { shape: 'session-1' })
+const warm = atom({ plugin: 'subagent-monitor', key: 'warm' } as const, { on: false, lastRequestAt: 0, pings: 0 }, { shape: 'warm-1' })
+
+// Cache lebt 60 min ab der letzten Anfrage: nach 50 min Ruhe einmal pingen.
+const WARM_AFTER_MS = 50 * 60_000
+// Sicherung gegen Dauerlauf (z. B. über Nacht): nach so vielen Pings in Folge schaltet es sich aus.
+const MAX_PINGS = 5
+const PING_PROMPT = 'Cache-Ping. Antworte nur mit: OK'
+let pinging = false
 
 const IDLE_TICK_MS = 30_000
 const BAR_COLOR = '#2f6fd0'
@@ -168,6 +176,29 @@ async function tick($: EngineInterface, running: boolean) {
   await update($, now, () => t)
   ticks++
   if (running && ticks % (POLL_MS / TICK_MS) === 0) await poll($)
+  await checkWarm($, t)
+}
+
+/** Schickt den Ping, wenn Warmhalten an ist und der Hauptchat seit 50 min still war. */
+async function checkWarm($: EngineInterface, t: number) {
+  const w = await read($, warm)
+  if (!w.on || pinging || t - w.lastRequestAt < WARM_AFTER_MS) return
+  pinging = true
+  try {
+    // Fork: der Chatverlauf wie zuletzt gesendet plus eine Zeile, ohne Werkzeuge und
+    // unsichtbar im Chat. Er liest den Cache und setzt dessen 60 min neu.
+    const r = await $.model.fork({ prompt: PING_PROMPT })
+    const ok = r.isAnswered
+    const at = await $.clock.now()
+    await update($, warm, v => {
+      const pings = v.pings + 1
+      // Fehlgeschlagen: in 2 min noch einmal versuchen, solange der Cache noch lebt.
+      const lastRequestAt = ok ? at : v.lastRequestAt + 2 * 60_000
+      return { ...v, on: v.on && pings < MAX_PINGS, lastRequestAt, pings, lastPingAt: at, lastPingOk: ok }
+    })
+  } finally {
+    pinging = false
+  }
 }
 
 /** Abgleich mit der Agentenliste der Engine: fängt Abbrüche und verpasste Enden ab. */
@@ -279,6 +310,8 @@ export const register: Register = on => {
         )
       }
       const t = await $.clock.now()
+      // Eine echte Anfrage des Hauptchats hat den Cache gerade erneuert: Ping-Uhr und Zähler von vorn.
+      if (!id) await update($, warm, v => ({ ...v, lastRequestAt: t, pings: 0 }))
       await update($, session, s => {
         const base = s ?? { input: 0, cacheRead: 0, output: 0, countingSince: t }
         return {
@@ -300,6 +333,13 @@ export const register: Register = on => {
       await finish($, e.agentId, failed ? 'failed' : 'done')
     }
     return r
+  })
+
+  on('ui.press', { plugin: NAME, element: 'warm' }, async ($, e, next) => {
+    const t = await $.clock.now()
+    // Beim Einschalten zählt die Ruhe ab jetzt, falls noch keine Anfrage gesehen wurde.
+    await update($, warm, v => ({ ...v, on: !v.on, pings: 0, lastRequestAt: v.lastRequestAt || t }))
+    return next(e)
   })
 
   on('ui.press', { plugin: NAME, element: 'clear' }, async ($, e, next) => {
@@ -407,6 +447,14 @@ export const register: Register = on => {
       </Box>
     ) : null
 
+    const w = await read($, warm)
+    const last =
+      w.lastPingAt !== undefined ? `letzter Ping ${clockText(w.lastPingAt, false)} ${w.lastPingOk ? '✓' : '✗'}` : ''
+    const nextIn = Math.max(0, Math.ceil((w.lastRequestAt + WARM_AFTER_MS - t) / 60_000))
+    const warmText = w.on
+      ? [`nächster Ping in ${nextIn}min`, `${w.pings}/${MAX_PINGS}`, last].filter(Boolean).join(' · ')
+      : last
+
     // Mindestens so hoch wie das Panel, damit die Liste wächst und Sitzung und Limits unten stehen.
     const minHeight = e.props.scroll.bodyRows
 
@@ -436,6 +484,17 @@ export const register: Register = on => {
                 {windows.map(limit)}
               </Box>
             ) : null}
+            <Box flexDirection="column" marginTop={1}>
+              <Box flexDirection="row" gap={1}>
+                <Box flexGrow={1} flexShrink={1} minWidth={0}>
+                  <Text>Cache warmhalten</Text>
+                </Box>
+                <Button key="warm" variant={w.on ? 'primary' : 'secondary'} onPress={() => undefined}>
+                  {w.on ? 'an' : 'aus'}
+                </Button>
+              </Box>
+              {warmText ? <Text dimColor wrap="truncate-end">{warmText}</Text> : null}
+            </Box>
           </Box>
         ) : null}
       </Box>

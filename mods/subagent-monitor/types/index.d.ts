@@ -38,6 +38,16 @@ export type RateLimit = {
   resetsAt?: string
 }
 
+/** Warmhalten des Prompt-Caches: ein unsichtbarer Ping über den Chatverlauf, bevor der Cache abläuft. */
+export type Warm = {
+  on: boolean
+  /** Letzte Anfrage, die den Cache des Hauptchats gelesen hat (eigene Antwort oder Ping). */
+  lastRequestAt: number
+  pings: number
+  lastPingAt?: number
+  lastPingOk?: boolean
+}
+
 declare module 'claude-code' {
   interface PluginState {
     'subagent-monitor': {
@@ -45,6 +55,7 @@ declare module 'claude-code' {
       now: number
       limits: Shaped<RateLimit[]>
       session: Shaped<SessionInfo | null>
+      warm: Shaped<Warm>
     }
   }
 }

@@ -1,7 +1,7 @@
 {
   "name": "subagent-monitor",
-  "version": "0.3.1",
-  "description": "Seitenpanel mit einer Zeile pro Subagent: Aufgabe, Typ, Laufzeit und woran er gerade arbeitet; unten Sitzung (Kontext, Tokens) sowie Session- und Wochenlimit",
+  "version": "0.4.0",
+  "description": "Seitenpanel mit einer Zeile pro Subagent: Aufgabe, Typ, Laufzeit und woran er gerade arbeitet; unten Sitzung (Kontext, Tokens) sowie Session- und Wochenlimit; Knopf zum Warmhalten des Caches",
   "author": { "name": "Manuel Hayböck" },
   "types": "./types/index.d.ts"
 }
