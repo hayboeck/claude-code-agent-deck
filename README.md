@@ -22,8 +22,6 @@ Aus der Shell:
 claude plugin install subagent-monitor --marketplace hayboeck/claude-mods
 ```
 
-Das Repo ist privat: Installieren klappt nur mit Lesezugriff und einem Git-Zugang für github.com auf dem Rechner (`gh auth login`, dann `gh auth setup-git`).
-
 ## Entwickeln
 
 ```
