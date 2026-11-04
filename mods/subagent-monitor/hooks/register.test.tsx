@@ -1,5 +1,8 @@
 import { expect, mock, test } from 'claude-code/testing'
 
+// The German texts are checked with the setting language: de; English is the default.
+const DE = { options: { language: 'de' } }
+
 const PANE = {
   plugin: 'subagent-monitor',
   component: 'Pane',
@@ -14,7 +17,7 @@ const PANE = {
   },
 } as const
 
-test('a subagent shows with its type and current tool', async ($, on) => {
+test('a subagent shows with its type and current tool', DE, async ($, on) => {
   const clock = mock.clock(on, { now: 1000 })
   on('command.register', () => ({ value: { command: 'subagents' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
@@ -49,7 +52,7 @@ const MEASURE = {
   changed: ['rateLimits'],
 } as const
 
-test('limits show at the bottom with percentage and reset time', async ($, on) => {
+test('limits show at the bottom with percentage and reset time', DE, async ($, on) => {
   mock.clock(on, { now: Date.parse('2026-11-04T15:00:00Z') })
   on('session.measure', (_, e) => ({ changed: e.changed }))
   await $.session.measure({ ...MEASURE, rateLimits: [...MEASURE.rateLimits], changed: [...MEASURE.changed] })
@@ -65,25 +68,22 @@ test('limits show at the bottom with percentage and reset time', async ($, on) =
   }
 })
 
-test('EN switches every text to English', async ($, on) => {
+test('without a setting every text is English', async ($, on) => {
   mock.clock(on, { now: Date.parse('2026-11-04T15:00:00Z') })
   on('session.measure', (_, e) => ({ changed: e.changed }))
   await $.session.measure({ ...MEASURE, rateLimits: [...MEASURE.rateLimits], changed: [...MEASURE.changed] })
 
   const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
-  expect(await ui.find({ type: 'Text', text: /^Nutzungslimits$/ })).toBeDefined()
-  await ui.press({ key: 'lang-en' })
   expect((await ui.find({ type: 'Text', text: /^Usage limits$/ }))?.text).toBe('Usage limits')
   expect((await ui.find({ type: 'Text', text: /^Week/ }))?.text).toBe('Week (7 days)')
   expect((await ui.find({ type: 'Text', text: /^85k/ }))?.text).toBe('85k of 200k (43 %)')
   expect((await ui.find({ type: 'Text', text: /^Resets in 2h 10min/ }))?.text).toMatch(/^Resets in 2h 10min( · 18:10)?$/)
+  expect((await ui.find({ type: 'Text', text: /^Keep cache warm$/ }))?.text).toBe('Keep cache warm')
   expect(await ui.find({ type: 'Text', text: /Nutzungslimits/ })).toBeUndefined()
-  await ui.press({ key: 'lang-de' })
-  expect((await ui.find({ type: 'Text', text: /^Nutzungslimits$/ }))?.text).toBe('Nutzungslimits')
   await ui.unmount()
 })
 
-test('keep warm pings once through a fork after 50 min of quiet', async ($, on) => {
+test('keep warm pings once through a fork after 50 min of quiet', DE, async ($, on) => {
   const clock = mock.clock(on, { now: Date.parse('2026-11-04T15:00:00Z') })
   const forks: string[] = []
   on('command.register', () => ({ value: { command: 'subagents' } }))
@@ -111,7 +111,7 @@ test('keep warm pings once through a fork after 50 min of quiet', async ($, on) 
   await ui.unmount()
 })
 
-test('an empty session shows a hint', async ($, on) => {
+test('an empty session shows a hint', DE, async ($, on) => {
   mock.clock(on)
   const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
   expect((await ui.find({ type: 'Text', text: /^Noch keine/ }))?.text).toBe('Noch keine Subagents in dieser Sitzung.')

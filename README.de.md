@@ -20,19 +20,19 @@ Im Eingabefeld von Claude Code:
 /plugin install subagent-monitor --marketplace hayboeck/claude-mods
 ```
 
-Mit `y` die Mod-Sammlung hinzufügen und mit Enter den Bereich „user“ wählen. Die Mod ist sofort aktiv und in jeder neuen Sitzung.
+Mit `y` die Mod-Sammlung hinzufügen, mit Enter den Bereich „user“ wählen und dann die **Sprache** des Panels: `en` (Englisch, Standard) oder `de` (Deutsch). Die Mod ist sofort aktiv und in jeder neuen Sitzung.
 
 | | |
 | --- | --- |
 | Panel öffnen | `/subagents` (öffnet sich auch von selbst beim ersten Subagent) |
 | Aktualisieren | `/plugin update subagent-monitor`, dann `/reload-plugins` |
+| Sprache ändern | `/config`, Zeile *subagent-monitor › Language*, oder Claude bitten: „stell den Subagent-Monitor auf Deutsch“ |
 | Entfernen | `/plugin uninstall subagent-monitor` |
 | Stattdessen aus der Shell | `claude plugin install subagent-monitor --marketplace hayboeck/claude-mods` |
 
 ### Was das Panel zeigt
 
 ```
-                                          DE | EN
 Laufend (1)
 ◐ Repo nach Konfigdateien durchsuchen       0:42
   Explore · haiku · Read: settings.json · 31k Tokens
@@ -54,7 +54,7 @@ Woche (7 Tage)                             38 %
 ███████████░░░░░░░░░░░░░░░░░░░
 Reset in 3d 22h · So., 8.11., 13:00
 ──────────────────────────────────────────────────
-Cache warmhalten               ● an  [ umschalten ]
+Cache warmhalten                          [ An ]
 nächster Ping in 37min · 0/5
 ```
 
@@ -64,7 +64,7 @@ nächster Ping in 37min · 0/5
 
 **Nutzungslimits.** Das 5-Stunden- und das Wochenlimit deines Abos, wie Claude Code sie meldet, jeweils mit dem Zeitpunkt des Resets.
 
-**Sprache.** `DE | EN` rechts oben schaltet alle Texte um; die Wahl bleibt für spätere Sitzungen gespeichert.
+**Sprache.** Englisch oder Deutsch, gewählt beim Installieren; eine Änderung lädt das Panel sofort neu.
 
 ### Warum diese Farben
 
@@ -80,7 +80,7 @@ nächster Ping in 37min · 0/5
 
 Claude Code hält deinen Chat 60 Minuten nach der letzten Anfrage im Prompt-Cache von Anthropic. Ist der Cache abgelaufen, muss die nächste Nachricht den ganzen Chat neu einlesen. Das kostet viel mehr von deinen Limits als eine Nachricht bei warmem Cache.
 
-Steht der Schalter auf **an**, wartet die Mod 50 Minuten Ruhe ab und schickt dann einen unsichtbaren Ping: den Chat, wie Claude Code ihn zuletzt gesendet hat, plus die Zeile „Antworte nur mit: OK“, ohne Werkzeuge. Im Chat erscheint nichts. Weil der Chat dabei aus dem Cache gelesen wird, beginnen dessen 60 Minuten von vorn. Jede echte Nachricht setzt den Countdown ebenfalls zurück.
+Steht der Knopf auf **An** (grün hinterlegt; rot **Aus** heißt ausgeschaltet), wartet die Mod 50 Minuten Ruhe ab und schickt dann einen unsichtbaren Ping: den Chat, wie Claude Code ihn zuletzt gesendet hat, plus die Zeile „Antworte nur mit: OK“, ohne Werkzeuge. Im Chat erscheint nichts. Weil der Chat dabei aus dem Cache gelesen wird, beginnen dessen 60 Minuten von vorn. Jede echte Nachricht setzt den Countdown ebenfalls zurück.
 
 - **Höchstens 5 Pings in Folge** (etwa 4 Stunden Ruhe), dann schaltet es sich selbst aus, damit es nie über Nacht läuft.
 - **Kosten, gemessen:** Bei einem Chat mit 258k Kontext haben 5 Pings das 5-Stunden-Limit um höchstens einen Prozentpunkt bewegt, das Wochenlimit gar nicht. Aus dem Cache lesen kostet etwa ein Zehntel davon, denselben Text neu zu lesen.

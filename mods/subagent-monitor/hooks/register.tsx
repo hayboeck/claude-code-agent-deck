@@ -16,7 +16,6 @@ const now = atom({ plugin: 'subagent-monitor', key: 'now' } as const, 0)
 const limits = atom({ plugin: 'subagent-monitor', key: 'limits' } as const, [], { shape: 'limits-1' })
 const session = atom({ plugin: 'subagent-monitor', key: 'session' } as const, null, { shape: 'session-1' })
 const warm = atom({ plugin: 'subagent-monitor', key: 'warm' } as const, { on: false, lastRequestAt: 0, pings: 0 }, { shape: 'warm-1' })
-const lang = atom({ plugin: 'subagent-monitor', key: 'lang' } as const, 'de', { shape: 'lang-1' })
 
 // The prompt cache lives 60 min after the last request: ping once after 50 min of quiet.
 const WARM_AFTER_MS = 50 * 60_000
@@ -71,9 +70,8 @@ const TEXT = {
     spend_limit: 'Ausgabenlimit',
     reset: 'Reset',
     warm: 'Cache warmhalten',
-    on: 'an',
-    off: 'aus',
-    toggle: 'umschalten',
+    on: 'An',
+    off: 'Aus',
     nextPing: 'nächster Ping in',
     lastPing: 'letzter Ping',
   },
@@ -101,9 +99,8 @@ const TEXT = {
     spend_limit: 'Spend limit',
     reset: 'Resets',
     warm: 'Keep cache warm',
-    on: 'on',
-    off: 'off',
-    toggle: 'toggle',
+    on: 'On',
+    off: 'Off',
     nextPing: 'next ping in',
     lastPing: 'last ping',
   },
@@ -313,12 +310,11 @@ async function finish($: EngineInterface, id: string, phase: Phase) {
   await syncClock($)
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  // The language comes from the plugin setting `language`, asked at install; changing it reloads the module.
+  const l: Lang = options.language === 'de' ? 'de' : 'en'
+
   on('session.start', async ($, e, next) => {
-    // The language is kept across sessions in the mod's store.
-    const stored = await $.store.get('lang').catch(() => undefined)
-    const l: Lang = stored === 'en' ? 'en' : 'de'
-    await update($, lang, () => l)
     await $.command.register({ name: 'subagents', description: TEXT[l].command })
     // A measuring tool for the model; if registering fails, the rest still runs.
     await $.tool
@@ -365,7 +361,7 @@ export const register: Register = on => {
 
   on('command.run', { command: 'subagents' }, async $ => {
     await $.ui.open({ id: PANE, title: TITLE })
-    return { text: TEXT[await read($, lang)].opened }
+    return { text: TEXT[l].opened }
   })
 
   on('agent.spawn', async ($, e, next) => {
@@ -470,18 +466,9 @@ export const register: Register = on => {
     return next(e)
   })
 
-  for (const l of ['de', 'en'] as const) {
-    on('ui.press', { plugin: NAME, element: `lang-${l}` }, async ($, e, next) => {
-      await update($, lang, () => l)
-      await $.store.set('lang', l).catch(() => undefined)
-      return next(e)
-    })
-  }
-
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const els = $.ui.resolve(e)
     const { Box, Text, Button } = els
-    const l = await read($, lang)
     const w = TEXT[l]
     const list = await read($, agents)
     // Before the first tick the clock reads 0: take the real time then.
@@ -609,16 +596,6 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column" minHeight={minHeight}>
-        {/* Language switch in the top right corner. */}
-        <Box flexDirection="row" gap={1} justifyContent="flex-end">
-          <Button key="lang-de" plain dimColor={l !== 'de'} onPress={() => undefined}>
-            DE
-          </Button>
-          <Text dimColor>|</Text>
-          <Button key="lang-en" plain dimColor={l !== 'en'} onPress={() => undefined}>
-            EN
-          </Button>
-        </Box>
         <Box flexDirection="column" flexGrow={1} flexShrink={1}>
           {list.length === 0 ? <Text dimColor>{w.none}</Text> : null}
           {running.length ? <Text bold>{`${w.running} (${running.length})`}</Text> : null}
@@ -649,13 +626,12 @@ export const register: Register = on => {
               <Box flexGrow={1} flexShrink={1} minWidth={0}>
                 <Text>{w.warm}</Text>
               </Box>
-              {/* A Button takes no colour: the state stands beside it in colour, green on, red off. */}
-              <Text color={wm.on ? 'success' : 'error'} bold>
-                {`● ${wm.on ? w.on : w.off}`}
-              </Text>
-              <Button key="warm" onPress={() => undefined}>
-                {w.toggle}
-              </Button>
+              {/* A Button takes no colour, so a Box behind it does: green while on, red while off. */}
+              <Box backgroundColor={wm.on ? GREEN : RED} paddingX={1}>
+                <Button key="warm" plain onPress={() => undefined}>
+                  {wm.on ? w.on : w.off}
+                </Button>
+              </Box>
             </Box>
             {warmText ? <Text dimColor wrap="truncate-end">{warmText}</Text> : null}
           </Box>

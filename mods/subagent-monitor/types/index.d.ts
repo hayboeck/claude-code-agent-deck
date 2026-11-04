@@ -1,6 +1,6 @@
 export type Phase = 'running' | 'done' | 'failed'
 
-/** Display language of the pane. */
+/** Display language of the pane: the plugin setting `language`. */
 export type Lang = 'de' | 'en'
 
 export type Agent = {
@@ -59,7 +59,6 @@ declare module 'claude-code' {
       limits: Shaped<RateLimit[]>
       session: Shaped<SessionInfo | null>
       warm: Shaped<Warm>
-      lang: Shaped<Lang>
     }
   }
 }

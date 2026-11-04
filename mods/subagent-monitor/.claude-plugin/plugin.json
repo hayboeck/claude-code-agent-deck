@@ -1,7 +1,16 @@
 {
   "name": "subagent-monitor",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Side pane: subagents with run time, current tool and tokens; session info, usage limits and keep-cache-warm switch (DE/EN)",
   "author": { "name": "Manuel Hayböck" },
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "description": "Language of the pane: en (English) or de (Deutsch)",
+      "default": "en",
+      "options": ["en", "de"]
+    }
+  }
 }

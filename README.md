@@ -20,19 +20,19 @@ At the Claude Code prompt:
 /plugin install subagent-monitor --marketplace hayboeck/claude-mods
 ```
 
-Answer `y` to add the marketplace and press Enter for the user scope. The mod is active at once and in every new session.
+Answer `y` to add the marketplace, press Enter for the user scope, then pick the **language** of the pane: `en` (English, the default) or `de` (Deutsch). The mod is active at once and in every new session.
 
 | | |
 | --- | --- |
 | Open the pane | `/subagents` (it also opens by itself when the first subagent starts) |
 | Update | `/plugin update subagent-monitor`, then `/reload-plugins` |
+| Change the language | `/config`, row *subagent-monitor › Language*, or ask Claude: "set the subagent-monitor language to de" |
 | Remove | `/plugin uninstall subagent-monitor` |
 | From a shell instead | `claude plugin install subagent-monitor --marketplace hayboeck/claude-mods` |
 
 ### What the pane shows
 
 ```
-                                          DE | EN
 Running (1)
 ◐ Search the repo for config files          0:42
   Explore · haiku · Read: settings.json · 31k tokens
@@ -54,7 +54,7 @@ Week (7 days)                              38 %
 ███████████░░░░░░░░░░░░░░░░░░░
 Resets in 3d 22h · Sun 8 Nov, 13:00
 ──────────────────────────────────────────────────
-Keep cache warm                  ● on  [ toggle ]
+Keep cache warm                           [ On ]
 next ping in 37min · 0/5
 ```
 
@@ -64,7 +64,7 @@ next ping in 37min · 0/5
 
 **Usage limits.** Your subscription's 5-hour and weekly limits as Claude Code reports them, with the time each one resets.
 
-**Language.** `DE | EN` in the top right corner switches every text; the choice is kept for later sessions.
+**Language.** English or German, set when you install the mod; a change reloads the pane at once.
 
 ### Why the colours
 
@@ -80,7 +80,7 @@ next ping in 37min · 0/5
 
 Claude Code keeps your chat in Anthropic's prompt cache for 60 minutes after the last request. When the cache has expired, the next message has to read the whole chat in again, which costs far more of your limits than a message on a warm cache.
 
-With the switch **on**, the mod waits for 50 minutes of quiet and then sends one invisible ping: the chat as Claude Code last sent it plus the line "Reply only with: OK", with no tools. It does not appear in your chat. Reading the chat from the cache restarts the cache's 60 minutes. Every real message resets the countdown too.
+With the button on **On** (green background; red **Off** means switched off), the mod waits for 50 minutes of quiet and then sends one invisible ping: the chat as Claude Code last sent it plus the line "Reply only with: OK", with no tools. It does not appear in your chat. Reading the chat from the cache restarts the cache's 60 minutes. Every real message resets the countdown too.
 
 - **At most 5 pings in a row** (about 4 hours of quiet), then it switches itself off, so it never runs all night.
 - **Cost, measured:** on a chat with a 258k context, 5 pings moved the 5-hour limit by at most one percentage point, and the weekly limit not at all. A cache read costs about a tenth of reading the same text fresh.
