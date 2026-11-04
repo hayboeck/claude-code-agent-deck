@@ -32,31 +32,7 @@ Answer `y` to add the marketplace, press Enter for the user scope, then pick the
 
 ### What the pane shows
 
-```
-Running (1)
-◐ Search the repo for config files          0:42
-  Explore · haiku · Read: settings.json · 31k tokens
-Finished (2)  clear
-✔ Count the memory files                    0:18
-  Explore · haiku · 7 steps · 42k tokens
-──────────────────────────────────────────────────
-Session
-Started                       Wed 4 Nov, 13:02
-Context                   262k of 1.00 M (26 %)
-████████░░░░░░░░░░░░░░░░░░░░░░
-Tokens used                              4.12 M
-──────────────────────────────────────────────────
-Usage limits
-Session (5h)                               42 %
-████████████░░░░░░░░░░░░░░░░░░
-Resets in 3h 59min · 18:10
-Week (7 days)                              38 %
-███████████░░░░░░░░░░░░░░░░░░░
-Resets in 3d 22h · Sun 8 Nov, 13:00
-──────────────────────────────────────────────────
-Keep cache warm                           [ On ]
-next ping in 37min · 0/5
-```
+<img src="docs/subagent-monitor.png" width="320" alt="The subagent-monitor pane in VS Code: finished subagents, session, usage limits and the keep-cache-warm switch">
 
 **Subagents.** One entry per subagent, two lines each: its task and run time (ticking live), then its type, model, what it is doing right now (the tool and its target: file, command, search pattern) and the tokens it has used. A turning orange circle means it is working, a green ✔ that it finished, a red ✘ that it stopped early. `clear` removes the finished ones.
 

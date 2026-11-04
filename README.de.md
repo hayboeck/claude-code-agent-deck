@@ -32,31 +32,7 @@ Mit `y` die Mod-Sammlung hinzufügen, mit Enter den Bereich „user“ wählen u
 
 ### Was das Panel zeigt
 
-```
-Laufend (1)
-◐ Repo nach Konfigdateien durchsuchen       0:42
-  Explore · haiku · Read: settings.json · 31k Tokens
-Beendet (2)  leeren
-✔ Memory-Dateien zählen                     0:18
-  Explore · haiku · 7 Schritte · 42k Tokens
-──────────────────────────────────────────────────
-Sitzung
-Gestartet                    Mi., 4.11., 13:02
-Kontext                  262k von 1,00 M (26 %)
-████████░░░░░░░░░░░░░░░░░░░░░░
-Tokenverbrauch                           4,12 M
-──────────────────────────────────────────────────
-Nutzungslimits
-Session (5h)                               42 %
-████████████░░░░░░░░░░░░░░░░░░
-Reset in 3h 59min · 18:10
-Woche (7 Tage)                             38 %
-███████████░░░░░░░░░░░░░░░░░░░
-Reset in 3d 22h · So., 8.11., 13:00
-──────────────────────────────────────────────────
-Cache warmhalten                          [ An ]
-nächster Ping in 37min · 0/5
-```
+<img src="docs/subagent-monitor.png" width="320" alt="Das Panel subagent-monitor in VS Code: fertige Subagents, Sitzung, Nutzungslimits und der Knopf zum Warmhalten des Caches">
 
 **Subagents.** Ein Eintrag pro Subagent, je zwei Zeilen: Aufgabe und Laufzeit (zählt live mit), darunter Typ, Modell, was er gerade tut (Werkzeug und Ziel: Datei, Befehl, Suchmuster) und seine verbrauchten Tokens. Ein sich drehender orangener Kreis heißt „arbeitet“, ein grünes ✔ „fertig“, ein rotes ✘ „vorzeitig abgebrochen“. `leeren` entfernt die fertigen.
 
