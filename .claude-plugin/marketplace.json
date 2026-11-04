@@ -1,0 +1,11 @@
+{
+  "name": "hayboeck-mods",
+  "owner": { "name": "Manuel Hayböck" },
+  "plugins": [
+    {
+      "name": "subagent-monitor",
+      "source": "./mods/subagent-monitor",
+      "description": "Seitenpanel mit einer Zeile pro Subagent: Aufgabe, Typ, Laufzeit und woran er gerade arbeitet"
+    }
+  ]
+}
