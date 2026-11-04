@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Agent, Phase } from '../types'
+import type { Agent, Phase, RateLimit } from '../types'
 
 const NAME = 'subagent-monitor'
 const PANE = 'subagents'
@@ -13,9 +13,21 @@ const POLL_MS = 3000
 // Tag ändern, wenn sich die Felder von Agent ändern: alte gespeicherte Werte werden dann verworfen.
 const agents = atom({ plugin: 'subagent-monitor', key: 'agents' } as const, [], { shape: 'agents-1' })
 const now = atom({ plugin: 'subagent-monitor', key: 'now' } as const, 0)
+const limits = atom({ plugin: 'subagent-monitor', key: 'limits' } as const, [], { shape: 'limits-1' })
+
+const IDLE_TICK_MS = 30_000
+const BAR_COLOR = '#2f6fd0'
+const BAR_WARN = '#d08a2f'
+const BAR_FULL = '#d0402f'
+const LIMIT_LABEL: Record<string, string> = {
+  five_hour: 'Session (5 h)',
+  seven_day: 'Woche (7 Tage)',
+  spend_limit: 'Ausgabenlimit',
+}
 
 // Modulvariablen beginnen bei jedem Neuladen von vorn; session.start startet die Uhr wieder.
 let ticker: { cancel(): void } | null = null
+let tickerMs = 0
 let ticks = 0
 
 const MS = 1000
@@ -63,27 +75,81 @@ function shortModel(m: string): string {
   return hit ? hit[1]!.toLowerCase() : m
 }
 
+/** „in 2 h 14 min · So 8.11. 13:00“; die Uhrzeit in Wiener Zeit, falls die Umgebung Zeitzonen kennt. */
+function resetText(iso: string | undefined, t: number): string {
+  if (!iso) return ''
+  const at = Date.parse(iso)
+  if (Number.isNaN(at)) return ''
+  const min = Math.max(0, Math.round((at - t) / 60_000))
+  const d = Math.floor(min / 1440)
+  const h = Math.floor((min % 1440) / 60)
+  const m = min % 60
+  const rel = d ? `in ${d} d ${h} h` : h ? `in ${h} h ${m} min` : `in ${m} min`
+  let abs = ''
+  try {
+    abs = new Intl.DateTimeFormat('de-AT', {
+      timeZone: 'Europe/Vienna',
+      weekday: 'short',
+      day: 'numeric',
+      month: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(at)
+  } catch {
+    abs = ''
+  }
+  return abs ? `${rel} · ${abs}` : rel
+}
+
+function barSvg(pct: number, px: number): string {
+  const w = Math.max(0, Math.min(100, pct))
+  const color = w >= 90 ? BAR_FULL : w >= 70 ? BAR_WARN : BAR_COLOR
+  const fill = Math.round((px * w) / 100)
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="6" viewBox="0 0 ${px} 6">` +
+    `<rect width="${px}" height="6" rx="3" fill="#8884"/>` +
+    (fill ? `<rect width="${Math.max(fill, 6)}" height="6" rx="3" fill="${color}"/>` : '') +
+    `</svg>`
+  )
+}
+
+function copyLimit(l: RateLimit): RateLimit {
+  return l.resetsAt ? { kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt } : { kind: l.kind, percentUsed: l.percentUsed }
+}
+
+function barText(pct: number, cols: number): string {
+  const n = Math.round((Math.max(0, Math.min(100, pct)) / 100) * cols)
+  return '█'.repeat(n) + '░'.repeat(cols - n)
+}
+
 async function anyRunning($: EngineInterface): Promise<boolean> {
   return (await read($, agents)).some(a => a.phase === 'running')
 }
 
-/** Uhr läuft nur, solange ein Agent arbeitet: jede Sekunde neu zeichnen, alle 3 s Status abgleichen. */
+/**
+ * Solange ein Agent arbeitet: jede Sekunde neu zeichnen, alle 3 s Status abgleichen.
+ * Sonst alle 30 s, damit der Countdown bis zum Zurücksetzen der Limits weiterläuft.
+ */
 async function syncClock($: EngineInterface) {
-  if (await anyRunning($)) {
-    ticker ??= $.clock.every(TICK_MS, () => {
-      void tick($).catch(() => undefined)
-    })
-  } else {
-    ticker?.cancel()
+  const running = await anyRunning($)
+  const want = running ? TICK_MS : IDLE_TICK_MS
+  if (ticker && tickerMs !== want) {
+    ticker.cancel()
     ticker = null
-    { const t = await $.clock.now(); await update($, now, () => t) }
   }
+  tickerMs = want
+  ticker ??= $.clock.every(want, () => {
+    void tick($, running).catch(() => undefined)
+  })
+  const t = await $.clock.now()
+  await update($, now, () => t)
 }
 
-async function tick($: EngineInterface) {
-  { const t = await $.clock.now(); await update($, now, () => t) }
+async function tick($: EngineInterface, running: boolean) {
+  const t = await $.clock.now()
+  await update($, now, () => t)
   ticks++
-  if (ticks % (POLL_MS / TICK_MS) === 0) await poll($)
+  if (running && ticks % (POLL_MS / TICK_MS) === 0) await poll($)
 }
 
 /** Abgleich mit der Agentenliste der Engine: fängt Abbrüche und verpasste Enden ab. */
@@ -117,6 +183,19 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'subagents', description: 'Subagent-Monitor öffnen' })
     await syncClock($)
+    const r = await next(e)
+    try {
+      const { rateLimits } = await $.session.usage()
+      if (rateLimits.length) await update($, limits, () => rateLimits.map(copyLimit))
+    } catch {
+      // ohne Abo oder vor der ersten Antwort: keine Limits, der Bereich bleibt weg
+    }
+    return r
+  })
+
+  // Nach jeder Antwort und wenn ein Limit um einen ganzen Prozentpunkt wandert.
+  on('session.measure', async ($, e, next) => {
+    if (e.changed.includes('rateLimits')) await update($, limits, () => e.rateLimits.map(copyLimit))
     return next(e)
   })
 
@@ -171,9 +250,11 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const els = $.ui.resolve(e)
+    const { Box, Text, Button } = els
     const list = await read($, agents)
-    const t = await read($, now)
+    // Vor dem ersten Takt steht die Uhr auf 0: dann die echte Zeit nehmen.
+    const t = (await read($, now)) || (await $.clock.now())
     const running = list.filter(a => a.phase === 'running')
     const ended = list.filter(a => a.phase !== 'running').reverse()
 
@@ -207,9 +288,35 @@ export const register: Register = on => {
       )
     }
 
+    const windows = await read($, limits)
+    const cols = e.props.bodyColumns
+    const Svg = e.surface !== 'terminal' && 'Svg' in els ? els.Svg : null
+    const limit = (l: RateLimit) => {
+      const pct = l.percentUsed
+      const label = LIMIT_LABEL[l.kind] ?? l.kind
+      const reset = resetText(l.resetsAt, t)
+      return (
+        <Box key={`limit-${l.kind}`} flexDirection="column" marginTop={1}>
+          <Box flexDirection="row" gap={1}>
+            <Box flexGrow={1} flexShrink={1} minWidth={0}>
+              <Text>{label}</Text>
+            </Box>
+            <Text bold>{`${Math.round(pct)} %`}</Text>
+          </Box>
+          {Svg ? (
+            <Svg source={barSvg(pct, Math.max(80, Math.floor(cols * 6.5)))} alt={`${label}: ${Math.round(pct)} % verbraucht`} height={6} />
+          ) : (
+            <Text color={pct >= 90 ? 'error' : pct >= 70 ? 'warning' : 'suggestion'}>{barText(pct, Math.max(10, cols - 2))}</Text>
+          )}
+          {reset ? <Text dimColor wrap="truncate-end">{`zurückgesetzt ${reset}`}</Text> : null}
+        </Box>
+      )
+    }
+
     return (
-      <Box flexDirection="column">
-        {list.length === 0 ? <Text dimColor>Noch keine Subagents in dieser Sitzung.</Text> : null}
+      <Box flexDirection="column" flexGrow={1}>
+        <Box flexDirection="column" flexGrow={1}>
+        {list.length === 0 ?<Text dimColor>Noch keine Subagents in dieser Sitzung.</Text> : null}
         {running.length ? <Text bold>{`Laufend (${running.length})`}</Text> : null}
         {running.map(row)}
         {ended.length ? (
@@ -221,6 +328,14 @@ export const register: Register = on => {
           </Box>
         ) : null}
         {ended.map(row)}
+        </Box>
+        {windows.length ? (
+          <Box flexDirection="column" marginTop={1}>
+            <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(10, cols))}</Text>
+            <Text bold>Nutzungslimits</Text>
+            {windows.map(limit)}
+          </Box>
+        ) : null}
       </Box>
     )
   })

@@ -41,7 +41,29 @@ test('ein Subagent erscheint mit Typ und aktuellem Werkzeug', async ($, on) => {
   await ui.unmount()
 })
 
-test('leere Sitzung zeigt einen Hinweis', async $ => {
+test('Limits erscheinen unten mit Prozent und Rücksetzzeit', async ($, on) => {
+  mock.clock(on, { now: Date.parse('2026-11-04T15:00:00Z') })
+  on('session.measure', (_, e) => ({ changed: e.changed }))
+  await $.session.measure({
+    context: { window: 200000 } as never,
+    rateLimits: [
+      { kind: 'five_hour', percentUsed: 8, resetsAt: '2026-11-04T17:10:00Z' },
+      { kind: 'seven_day', percentUsed: 32, resetsAt: '2026-11-08T12:00:00Z' },
+    ],
+    changed: ['rateLimits'],
+  })
+
+  for (const surface of ['terminal', 'vscode'] as const) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    expect((await ui.find({ type: 'Text', text: /^Session/ }))?.text).toBe('Session (5 h)')
+    expect((await ui.find({ type: 'Text', text: /^32/ }))?.text).toBe('32 %')
+    expect((await ui.find({ type: 'Text', text: /zurückgesetzt in 2 h 10 min/ }))).toBeDefined()
+    await ui.unmount()
+  }
+})
+
+test('leere Sitzung zeigt einen Hinweis', async ($, on) => {
+  mock.clock(on)
   const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
   expect((await ui.find({ type: 'Text' }))?.text).toBe('Noch keine Subagents in dieser Sitzung.')
   await ui.unmount()

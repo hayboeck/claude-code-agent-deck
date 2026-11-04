@@ -14,11 +14,19 @@ export type Agent = {
   steps: number
 }
 
+/** Ein Limit-Fenster, wie die Engine es meldet (five_hour, seven_day, spend_limit). */
+export type RateLimit = {
+  kind: string
+  percentUsed: number
+  resetsAt?: string
+}
+
 declare module 'claude-code' {
   interface PluginState {
     'subagent-monitor': {
       agents: Shaped<Agent[]>
       now: number
+      limits: Shaped<RateLimit[]>
     }
   }
 }
