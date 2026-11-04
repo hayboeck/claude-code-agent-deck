@@ -1,5 +1,8 @@
 export type Phase = 'running' | 'done' | 'failed'
 
+/** Display language of the pane. */
+export type Lang = 'de' | 'en'
+
 export type Agent = {
   id: string
   description: string
@@ -8,22 +11,22 @@ export type Agent = {
   startedAt: number
   endedAt?: number
   phase: Phase
-  /** Zuletzt aufgerufenes Werkzeug und sein Ziel (Datei, Befehl, Suchmuster). */
+  /** Last tool called and its target (file, command, search pattern). */
   tool?: string
   detail?: string
   steps: number
-  /** Kontextgröße der letzten Anfrage (Eingabe inkl. Cache) und erzeugte Tokens, summiert. */
+  /** Context size of the last request (input incl. cache) and generated tokens, summed. */
   context?: number
   output?: number
 }
 
-/** Kontext und Verbrauch der Hauptsitzung. */
+/** Context and usage of the main session. */
 export type SessionInfo = {
   startedAt?: number
   contextTokens?: number
   contextWindow?: number
   contextPercent?: number
-  /** Summen über alle Anfragen seit `countingSince` (Hauptchat und Subagents). */
+  /** Totals over all requests since `countingSince` (main chat and subagents). */
   input: number
   cacheRead: number
   output: number
@@ -31,17 +34,17 @@ export type SessionInfo = {
   usd?: number
 }
 
-/** Ein Limit-Fenster, wie die Engine es meldet (five_hour, seven_day, spend_limit). */
+/** One limit window as the engine reports it (five_hour, seven_day, spend_limit). */
 export type RateLimit = {
   kind: string
   percentUsed: number
   resetsAt?: string
 }
 
-/** Warmhalten des Prompt-Caches: ein unsichtbarer Ping über den Chatverlauf, bevor der Cache abläuft. */
+/** Keeping the prompt cache warm: an invisible ping over the chat before the cache expires. */
 export type Warm = {
   on: boolean
-  /** Letzte Anfrage, die den Cache des Hauptchats gelesen hat (eigene Antwort oder Ping). */
+  /** Last request that read the main chat's cache (its own reply or a ping). */
   lastRequestAt: number
   pings: number
   lastPingAt?: number
@@ -56,6 +59,7 @@ declare module 'claude-code' {
       limits: Shaped<RateLimit[]>
       session: Shaped<SessionInfo | null>
       warm: Shaped<Warm>
+      lang: Shaped<Lang>
     }
   }
 }

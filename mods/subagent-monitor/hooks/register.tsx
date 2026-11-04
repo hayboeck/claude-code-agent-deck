@@ -1,40 +1,113 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, TurnUsage } from 'claude-code'
 
-import type { Agent, Phase, RateLimit, SessionInfo } from '../types'
+import type { Agent, Lang, Phase, RateLimit, SessionInfo } from '../types'
 
 const NAME = 'subagent-monitor'
 const PANE = 'subagents'
 const TITLE = 'Subagents'
-const KEEP = 30 // so viele Agenten bleiben in der Liste
+const KEEP = 30 // agents kept in the list
 const TICK_MS = 1000
 const POLL_MS = 3000
 
-// Tag ändern, wenn sich die Felder von Agent ändern: alte gespeicherte Werte werden dann verworfen.
+// Change a shape tag when that value's fields change: values an earlier version stored are then dropped.
 const agents = atom({ plugin: 'subagent-monitor', key: 'agents' } as const, [], { shape: 'agents-1' })
 const now = atom({ plugin: 'subagent-monitor', key: 'now' } as const, 0)
 const limits = atom({ plugin: 'subagent-monitor', key: 'limits' } as const, [], { shape: 'limits-1' })
 const session = atom({ plugin: 'subagent-monitor', key: 'session' } as const, null, { shape: 'session-1' })
 const warm = atom({ plugin: 'subagent-monitor', key: 'warm' } as const, { on: false, lastRequestAt: 0, pings: 0 }, { shape: 'warm-1' })
+const lang = atom({ plugin: 'subagent-monitor', key: 'lang' } as const, 'de', { shape: 'lang-1' })
 
-// Cache lebt 60 min ab der letzten Anfrage: nach 50 min Ruhe einmal pingen.
+// The prompt cache lives 60 min after the last request: ping once after 50 min of quiet.
 const WARM_AFTER_MS = 50 * 60_000
-// Sicherung gegen Dauerlauf (z. B. über Nacht): nach so vielen Pings in Folge schaltet es sich aus.
+// Guard against running all night: after this many pings in a row it switches itself off.
 const MAX_PINGS = 5
-const PING_PROMPT = 'Cache-Ping. Antworte nur mit: OK'
+const PING_PROMPT = 'Cache ping. Reply only with: OK'
 let pinging = false
 
 const IDLE_TICK_MS = 30_000
-const BAR_COLOR = '#2f6fd0'
-const BAR_WARN = '#d08a2f'
-const BAR_FULL = '#d0402f'
-const LIMIT_LABEL: Record<string, string> = {
-  five_hour: 'Session (5h)',
-  seven_day: 'Woche (7 Tage)',
-  spend_limit: 'Ausgabenlimit',
+const GREEN = '#2e9e44'
+const YELLOW = '#d6b400'
+const ORANGE = '#e08a1e'
+const RED = '#d0402f'
+
+/** Limit bars: green up to 40 %, yellow to 60 %, orange to 80 %, red above. */
+function limitColor(pct: number): string {
+  return pct <= 40 ? GREEN : pct <= 60 ? YELLOW : pct <= 80 ? ORANGE : RED
 }
 
-// Modulvariablen beginnen bei jedem Neuladen von vorn; session.start startet die Uhr wieder.
+/** Context bar by absolute size: green up to 250k, yellow to 500k, orange to 750k, red above. */
+function contextColor(n: number): string {
+  return n <= 250_000 ? GREEN : n <= 500_000 ? YELLOW : n <= 750_000 ? ORANGE : RED
+}
+
+// Every text the pane shows, per language.
+const TEXT = {
+  de: {
+    locale: 'de-AT',
+    command: 'Subagent-Monitor öffnen',
+    opened: 'Subagent-Monitor geöffnet.',
+    none: 'Noch keine Subagents in dieser Sitzung.',
+    running: 'Laufend',
+    ended: 'Beendet',
+    clear: 'leeren',
+    starting: 'startet …',
+    aborted: 'abgebrochen',
+    steps: 'Schritte',
+    tokens: 'Tokens',
+    working: 'arbeitet',
+    session: 'Sitzung',
+    started: 'Gestartet',
+    context: 'Kontext',
+    of: 'von',
+    used: 'Tokenverbrauch',
+    limits: 'Nutzungslimits',
+    five_hour: 'Session (5h)',
+    seven_day: 'Woche (7 Tage)',
+    spend_limit: 'Ausgabenlimit',
+    reset: 'Reset',
+    warm: 'Cache warmhalten',
+    on: 'an',
+    off: 'aus',
+    toggle: 'umschalten',
+    nextPing: 'nächster Ping in',
+    lastPing: 'letzter Ping',
+  },
+  en: {
+    locale: 'en-GB',
+    command: 'Open the subagent monitor',
+    opened: 'Subagent monitor opened.',
+    none: 'No subagents in this session yet.',
+    running: 'Running',
+    ended: 'Finished',
+    clear: 'clear',
+    starting: 'starting …',
+    aborted: 'aborted',
+    steps: 'steps',
+    tokens: 'tokens',
+    working: 'working',
+    session: 'Session',
+    started: 'Started',
+    context: 'Context',
+    of: 'of',
+    used: 'Tokens used',
+    limits: 'Usage limits',
+    five_hour: 'Session (5h)',
+    seven_day: 'Week (7 days)',
+    spend_limit: 'Spend limit',
+    reset: 'Resets',
+    warm: 'Keep cache warm',
+    on: 'on',
+    off: 'off',
+    toggle: 'toggle',
+    nextPing: 'next ping in',
+    lastPing: 'last ping',
+  },
+} as const
+
+type Words = (typeof TEXT)[Lang]
+
+// Module variables start over on every reload; session.start starts the clock again.
 let ticker: { cancel(): void } | null = null
 let tickerMs = 0
 let ticks = 0
@@ -48,14 +121,15 @@ function duration(ms: number): string {
   return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
 }
 
-/** 950 → „950“, 41 984 → „42k“, 1 234 567 → „1,23 M“ */
-function tokens(n: number): string {
+/** 950 → "950", 41 984 → "42k", 1 234 567 → "1,23 M" (German) or "1.23 M" (English) */
+function tokens(n: number, l: Lang): string {
   if (n < 1000) return String(Math.round(n))
   if (n < 1_000_000) return `${Math.round(n / 1000)}k`
-  return `${(n / 1_000_000).toFixed(2).replace('.', ',')} M`
+  const m = (n / 1_000_000).toFixed(2)
+  return `${l === 'de' ? m.replace('.', ',') : m} M`
 }
 
-/** Eingabe einer Anfrage samt Cache: so groß war der Kontext, den das Modell gelesen hat. */
+/** A request's input including the cache: the size of the context the model read. */
 function contextOf(u: TurnUsage): number {
   return u.input_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens
 }
@@ -68,10 +142,10 @@ function contextFields(c: { tokens?: number; window: number; percent?: number })
   }
 }
 
-function clockText(at: number, withDate: boolean): string {
+function clockText(at: number, withDate: boolean, w: Words): string {
   try {
     const date: Intl.DateTimeFormatOptions = withDate ? { weekday: 'short', day: 'numeric', month: 'numeric' } : {}
-    return new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', ...date, hour: '2-digit', minute: '2-digit' }).format(at)
+    return new Intl.DateTimeFormat(w.locale, { timeZone: 'Europe/Vienna', ...date, hour: '2-digit', minute: '2-digit' }).format(at)
   } catch {
     return ''
   }
@@ -81,7 +155,7 @@ function basename(p: string): string {
   return p.split(/[\\/]/).filter(Boolean).pop() ?? p
 }
 
-/** Woran der Agent arbeitet: das Ziel des Werkzeugaufrufs in wenigen Worten. */
+/** What the agent is working on: the target of its tool call in a few words. */
 function describe(tool: string, a: Record<string, unknown>): string {
   const s = (k: string) => (typeof a[k] === 'string' ? (a[k] as string) : '')
   switch (tool) {
@@ -113,8 +187,8 @@ function shortModel(m: string): string {
   return hit ? hit[1]!.toLowerCase() : m
 }
 
-/** „in 2 h 14 min · So 8.11. 13:00“; die Uhrzeit in Wiener Zeit, falls die Umgebung Zeitzonen kennt. */
-function resetText(iso: string | undefined, t: number, withDate: boolean): string {
+/** "in 2h 14min · 18:10", with weekday and date when asked; Vienna time where the runtime knows time zones. */
+function resetText(iso: string | undefined, t: number, withDate: boolean, w: Words): string {
   if (!iso) return ''
   const at = Date.parse(iso)
   if (Number.isNaN(at)) return ''
@@ -123,13 +197,12 @@ function resetText(iso: string | undefined, t: number, withDate: boolean): strin
   const h = Math.floor((min % 1440) / 60)
   const m = min % 60
   const rel = d ? `in ${d}d ${h}h` : h ? `in ${h}h ${m}min` : `in ${m}min`
-  const abs = clockText(at, withDate)
+  const abs = clockText(at, withDate, w)
   return abs ? `${rel} · ${abs}` : rel
 }
 
-function barSvg(pct: number, px: number): string {
+function barSvg(pct: number, px: number, color: string): string {
   const w = Math.max(0, Math.min(100, pct))
-  const color = w >= 90 ? BAR_FULL : w >= 70 ? BAR_WARN : BAR_COLOR
   const fill = Math.round((px * w) / 100)
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="6" viewBox="0 0 ${px} 6">` +
@@ -161,8 +234,8 @@ async function anyRunning($: EngineInterface): Promise<boolean> {
 }
 
 /**
- * Solange ein Agent arbeitet: jede Sekunde neu zeichnen, alle 3 s Status abgleichen.
- * Sonst alle 30 s, damit der Countdown bis zum Zurücksetzen der Limits weiterläuft.
+ * While an agent works: redraw every second, check its status every 3 s.
+ * Otherwise every 30 s, so the countdown to the limits' reset keeps moving.
  */
 async function syncClock($: EngineInterface) {
   const running = await anyRunning($)
@@ -187,20 +260,20 @@ async function tick($: EngineInterface, running: boolean) {
   await checkWarm($, t)
 }
 
-/** Schickt den Ping, wenn Warmhalten an ist und der Hauptchat seit 50 min still war. */
+/** Sends the ping when "keep warm" is on and the main chat has been quiet for 50 min. */
 async function checkWarm($: EngineInterface, t: number) {
   const w = await read($, warm)
   if (!w.on || pinging || t - w.lastRequestAt < WARM_AFTER_MS) return
   pinging = true
   try {
-    // Fork: der Chatverlauf wie zuletzt gesendet plus eine Zeile, ohne Werkzeuge und
-    // unsichtbar im Chat. Er liest den Cache und setzt dessen 60 min neu.
+    // A fork: the chat as last sent plus one line, without tools and invisible in the chat.
+    // It reads the cache and so restarts its 60 minutes.
     const r = await $.model.fork({ prompt: PING_PROMPT })
     const ok = r.isAnswered
     const at = await $.clock.now()
     await update($, warm, v => {
       const pings = v.pings + 1
-      // Fehlgeschlagen: in 2 min noch einmal versuchen, solange der Cache noch lebt.
+      // Failed: try again in 2 min, while the cache is still alive.
       const lastRequestAt = ok ? at : v.lastRequestAt + 2 * 60_000
       return { ...v, on: v.on && pings < MAX_PINGS, lastRequestAt, pings, lastPingAt: at, lastPingOk: ok }
     })
@@ -209,7 +282,7 @@ async function checkWarm($: EngineInterface, t: number) {
   }
 }
 
-/** Abgleich mit der Agentenliste der Engine: fängt Abbrüche und verpasste Enden ab. */
+/** Compares with the engine's agent list: catches aborts and missed ends. */
 async function poll($: EngineInterface) {
   const live = new Map((await $.agent.list()).map(a => [a.id, a.status]))
   const t = await $.clock.now()
@@ -238,13 +311,17 @@ async function finish($: EngineInterface, id: string, phase: Phase) {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'subagents', description: 'Subagent-Monitor öffnen' })
-    // Messwerkzeug fürs Modell; schlägt das Anmelden fehl, läuft der Rest trotzdem.
+    // The language is kept across sessions in the mod's store.
+    const stored = await $.store.get('lang').catch(() => undefined)
+    const l: Lang = stored === 'en' ? 'en' : 'de'
+    await update($, lang, () => l)
+    await $.command.register({ name: 'subagents', description: TEXT[l].command })
+    // A measuring tool for the model; if registering fails, the rest still runs.
     await $.tool
       .register({
         name: 'cache_ping_test',
         description:
-          'Messung: löst count (1–5) Cache-Pings direkt hintereinander aus, wie der Knopf „Cache warmhalten“, und meldet je Ping die Token-Zahlen und die Nutzungslimits davor und danach.',
+          'Measurement: sends count (1–5) cache pings back to back, as the "keep cache warm" switch does, and reports each ping\'s token counts and the usage limits before and after.',
         inputSchema: {
           type: 'object',
           properties: { count: { type: 'integer', minimum: 1, maximum: 5 } },
@@ -265,12 +342,12 @@ export const register: Register = on => {
         ...(u.cost ? { usd: u.cost.usd } : {}),
       }))
     } catch {
-      // ohne Abo oder vor der ersten Antwort: keine Limits, der Bereich bleibt weg
+      // No subscription, or before the first response: no limits, the section stays away.
     }
     return r
   })
 
-  // Nach jeder Antwort und wenn ein Limit um einen ganzen Prozentpunkt wandert.
+  // After every response, and when a limit moves a whole percentage point.
   on('session.measure', async ($, e, next) => {
     if (e.changed.includes('rateLimits')) await update($, limits, () => e.rateLimits.map(copyLimit))
     const t = await $.clock.now()
@@ -284,7 +361,7 @@ export const register: Register = on => {
 
   on('command.run', { command: 'subagents' }, async $ => {
     await $.ui.open({ id: PANE, title: TITLE })
-    return { text: 'Subagent-Monitor geöffnet.' }
+    return { text: TEXT[await read($, lang)].opened }
   })
 
   on('agent.spawn', async ($, e, next) => {
@@ -318,7 +395,7 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // Jede Modellanfrage: Kontext und Ausgabe je Subagent, Summen für die ganze Sitzung.
+  // Every model request: context and output per subagent, totals for the whole session.
   on('turn.step', async function* ($, e, next) {
     const r = yield* next(e)
     const u = r.usage
@@ -331,7 +408,7 @@ export const register: Register = on => {
         )
       }
       const t = await $.clock.now()
-      // Eine echte Anfrage des Hauptchats hat den Cache gerade erneuert: Ping-Uhr und Zähler von vorn.
+      // A real request of the main chat just renewed the cache: ping clock and counter start over.
       if (!id) await update($, warm, v => ({ ...v, lastRequestAt: t, pings: 0 }))
       await update($, session, s => {
         const base = s ?? { input: 0, cacheRead: 0, output: 0, countingSince: t }
@@ -359,17 +436,18 @@ export const register: Register = on => {
   on('tool.call', { tool: 'mcp__subagent-monitor__cache_ping_test' }, async ($, e) => {
     const count = Math.max(1, Math.min(5, Number((e as unknown as { count?: number }).count) || 1))
     const limitsNow = async () =>
-      (await $.session.usage()).rateLimits.map(l => `${l.kind} ${l.percentUsed} %`).join(', ') || 'keine Angabe'
-    const lines = [`vorher: ${await limitsNow()}`]
+      (await $.session.usage()).rateLimits.map(l => `${l.kind} ${l.percentUsed} %`).join(', ') || 'none reported'
+    const lines = [`before: ${await limitsNow()}`]
     for (let i = 1; i <= count; i++) {
       const r = await $.model.fork({ prompt: PING_PROMPT })
-      const u = "usage" in r ? r.usage : undefined
+      const u = 'usage' in r ? r.usage : undefined
+      const status = r.isAnswered ? 'ok' : `failed (${r.reason})`
       lines.push(
         u
-          ? `Ping ${i}: ${r.isAnswered ? 'ok' : `fehlgeschlagen (${r.reason})`} · Cache gelesen ${u.cache_read_input_tokens} · Cache geschrieben ${u.cache_creation_input_tokens} · neu ${u.input_tokens} · Ausgabe ${u.output_tokens}`
-          : `Ping ${i}: ${r.isAnswered ? 'ok' : `fehlgeschlagen (${r.reason})`} · keine Token-Angabe`,
+          ? `Ping ${i}: ${status} · cache read ${u.cache_read_input_tokens} · cache written ${u.cache_creation_input_tokens} · new ${u.input_tokens} · output ${u.output_tokens}`
+          : `Ping ${i}: ${status} · no token counts`,
       )
-      lines.push(`  danach: ${await limitsNow()}`)
+      lines.push(`  after: ${await limitsNow()}`)
     }
     const at = await $.clock.now()
     await update($, warm, v => ({ ...v, lastRequestAt: at }))
@@ -378,7 +456,7 @@ export const register: Register = on => {
 
   on('ui.press', { plugin: NAME, element: 'warm' }, async ($, e, next) => {
     const t = await $.clock.now()
-    // Beim Einschalten zählt die Ruhe ab jetzt, falls noch keine Anfrage gesehen wurde.
+    // Switching on counts the quiet from now when no request has been seen yet.
     await update($, warm, v => ({ ...v, on: !v.on, pings: 0, lastRequestAt: v.lastRequestAt || t }))
     return next(e)
   })
@@ -388,22 +466,32 @@ export const register: Register = on => {
     return next(e)
   })
 
+  for (const l of ['de', 'en'] as const) {
+    on('ui.press', { plugin: NAME, element: `lang-${l}` }, async ($, e, next) => {
+      await update($, lang, () => l)
+      await $.store.set('lang', l).catch(() => undefined)
+      return next(e)
+    })
+  }
+
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const els = $.ui.resolve(e)
     const { Box, Text, Button } = els
+    const l = await read($, lang)
+    const w = TEXT[l]
     const list = await read($, agents)
-    // Vor dem ersten Takt steht die Uhr auf 0: dann die echte Zeit nehmen.
+    // Before the first tick the clock reads 0: take the real time then.
     const t = (await read($, now)) || (await $.clock.now())
     const running = list.filter(a => a.phase === 'running')
     const ended = list.filter(a => a.phase !== 'running').reverse()
 
     const Svg = e.surface !== 'terminal' && 'Svg' in els ? els.Svg : null
 
-    // Laufend: orangener Kreis, der sich dreht (SVG-Animation; im Terminal ein Zeichen pro Sekunde).
+    // Running: an orange circle that turns (SVG animation; in the terminal one glyph per second).
     const mark = (a: Agent) => {
       if (a.phase === 'running') {
         return Svg ? (
-          <Svg source={SPINNER_SVG} alt="arbeitet" width={12} height={12} />
+          <Svg source={SPINNER_SVG} alt={w.working} width={12} height={12} />
         ) : (
           <Text color="warning" bold>{SPIN[Math.floor(t / 1000) % SPIN.length]}</Text>
         )
@@ -415,16 +503,16 @@ export const register: Register = on => {
       )
     }
 
-    // Zwei Zeilen je Agent: Aufgabe und Laufzeit, darunter Typ, Modell, Tätigkeit und Tokens.
+    // Two lines per agent: task and run time, below it type, model, activity and tokens.
     const row = (a: Agent) => {
       const live = a.phase === 'running'
       const time = duration((live ? Math.max(t, a.startedAt) : (a.endedAt ?? a.startedAt)) - a.startedAt)
       const doing = live
         ? a.tool
           ? `${a.tool}: ${a.detail || '…'}`
-          : 'startet …'
-        : `${a.phase === 'done' ? '' : 'abgebrochen · '}${a.steps} Schritte`
-      const used = a.context !== undefined ? `${tokens(a.context + (a.output ?? 0))} Tokens` : ''
+          : w.starting
+        : `${a.phase === 'done' ? '' : `${w.aborted} · `}${a.steps} ${w.steps}`
+      const used = a.context !== undefined ? `${tokens(a.context + (a.output ?? 0), l)} ${w.tokens}` : ''
       const second = [a.type, a.model, doing, used].filter(Boolean).join(' · ')
       return (
         <Box key={a.id} flexDirection="column" marginBottom={1}>
@@ -446,31 +534,32 @@ export const register: Register = on => {
 
     const windows = await read($, limits)
     const cols = e.props.bodyColumns
-    const limit = (l: RateLimit, i: number) => {
-      const pct = l.percentUsed
-      const label = LIMIT_LABEL[l.kind] ?? l.kind
-      // Das 5-h-Fenster endet immer heute oder morgen früh: Uhrzeit reicht.
-      const reset = resetText(l.resetsAt, t, l.kind !== 'five_hour')
+
+    const bar = (pct: number, label: string, color: string) =>
+      Svg ? (
+        <Svg source={barSvg(pct, Math.max(80, Math.floor(cols * 6.5)), color)} alt={`${label}: ${Math.round(pct)} %`} height={6} />
+      ) : (
+        <Text color={color}>{barText(pct, Math.max(10, cols - 2))}</Text>
+      )
+
+    const limit = (lim: RateLimit, i: number) => {
+      const pct = lim.percentUsed
+      const label = (w as Record<string, string>)[lim.kind] ?? lim.kind
+      // The 5h window always ends today or early tomorrow: the time is enough.
+      const reset = resetText(lim.resetsAt, t, lim.kind !== 'five_hour', w)
       return (
-        <Box key={`limit-${l.kind}`} flexDirection="column" marginTop={i ? 1 : 0}>
+        <Box key={`limit-${lim.kind}`} flexDirection="column" marginTop={i ? 1 : 0}>
           <Box flexDirection="row" gap={1}>
             <Box flexGrow={1} flexShrink={1} minWidth={0}>
               <Text>{label}</Text>
             </Box>
             <Text bold>{`${Math.round(pct)} %`}</Text>
           </Box>
-          {bar(pct, label)}
-          {reset ? <Text dimColor wrap="truncate-end">{`Reset ${reset}`}</Text> : null}
+          {bar(pct, label, limitColor(pct))}
+          {reset ? <Text dimColor wrap="truncate-end">{`${w.reset} ${reset}`}</Text> : null}
         </Box>
       )
     }
-
-    const bar = (pct: number, label: string) =>
-      Svg ? (
-        <Svg source={barSvg(pct, Math.max(80, Math.floor(cols * 6.5)))} alt={`${label}: ${Math.round(pct)} %`} height={6} />
-      ) : (
-        <Text color={pct >= 90 ? 'error' : pct >= 70 ? 'warning' : 'suggestion'}>{barText(pct, Math.max(10, cols - 2))}</Text>
-      )
 
     const pair = (key: string, label: string, value: string) => (
       <Box key={key} flexDirection="row" gap={1}>
@@ -486,79 +575,86 @@ export const register: Register = on => {
       s?.contextTokens !== undefined && s.contextWindow ? (100 * s.contextTokens) / s.contextWindow : s?.contextPercent
     const info = s ? (
       <Box flexDirection="column">
-        <Text bold>Sitzung</Text>
-        {s.startedAt !== undefined ? pair('started', 'Gestartet', clockText(s.startedAt, true)) : null}
+        <Text bold>{w.session}</Text>
+        {s.startedAt !== undefined ? pair('started', w.started, clockText(s.startedAt, true, w)) : null}
         {s.contextTokens !== undefined
           ? pair(
               'ctx',
-              'Kontext',
-              `${tokens(s.contextTokens)}${s.contextWindow ? ` von ${tokens(s.contextWindow)}` : ''}${ctxPct !== undefined ? ` (${Math.round(ctxPct)} %)` : ''}`,
+              w.context,
+              `${tokens(s.contextTokens, l)}${s.contextWindow ? ` ${w.of} ${tokens(s.contextWindow, l)}` : ''}${ctxPct !== undefined ? ` (${Math.round(ctxPct)} %)` : ''}`,
             )
           : null}
-        {ctxPct !== undefined ? bar(ctxPct, 'Kontext') : null}
-        {pair('used', 'Tokenverbrauch', tokens(s.input + s.output))}
+        {ctxPct !== undefined && s.contextTokens !== undefined ? bar(ctxPct, w.context, contextColor(s.contextTokens)) : null}
+        {pair('used', w.used, tokens(s.input + s.output, l))}
       </Box>
     ) : null
 
-    const w = await read($, warm)
+    const wm = await read($, warm)
     const last =
-      w.lastPingAt !== undefined ? `letzter Ping ${clockText(w.lastPingAt, false)} ${w.lastPingOk ? '✓' : '✗'}` : ''
-    const nextIn = Math.max(0, Math.ceil((w.lastRequestAt + WARM_AFTER_MS - t) / 60_000))
-    const warmText = w.on
-      ? [`nächster Ping in ${nextIn}min`, `${w.pings}/${MAX_PINGS}`, last].filter(Boolean).join(' · ')
+      wm.lastPingAt !== undefined ? `${w.lastPing} ${clockText(wm.lastPingAt, false, w)} ${wm.lastPingOk ? '✓' : '✗'}` : ''
+    const nextIn = Math.max(0, Math.ceil((wm.lastRequestAt + WARM_AFTER_MS - t) / 60_000))
+    const warmText = wm.on
+      ? [`${w.nextPing} ${nextIn}min`, `${wm.pings}/${MAX_PINGS}`, last].filter(Boolean).join(' · ')
       : last
 
-    // Leichter Trennstrich zwischen den Blöcken unten (blass, der obere kräftig).
+    // Light rule between the blocks at the bottom (dim; the top one is strong).
     const lightRule = <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(10, cols))}</Text>
 
-    // Mindestens so hoch wie das Panel, damit die Liste wächst und Sitzung und Limits unten stehen.
+    // At least as tall as the pane, so the list grows and session and limits sit at the bottom.
     const minHeight = e.props.scroll.bodyRows
 
     return (
       <Box flexDirection="column" minHeight={minHeight}>
         <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-        {list.length === 0 ?<Text dimColor>Noch keine Subagents in dieser Sitzung.</Text> : null}
-        {running.length ? <Text bold>{`Laufend (${running.length})`}</Text> : null}
-        {running.map(row)}
-        {ended.length ? (
-          <Box flexDirection="row" gap={1}>
-            <Text bold>{`Beendet (${ended.length})`}</Text>
-            <Button key="clear" plain onPress={() => undefined}>
-              <Text dimColor>leeren</Text>
+          {list.length === 0 ? <Text dimColor>{w.none}</Text> : null}
+          {running.length ? <Text bold>{`${w.running} (${running.length})`}</Text> : null}
+          {running.map(row)}
+          {ended.length ? (
+            <Box flexDirection="row" gap={1}>
+              <Text bold>{`${w.ended} (${ended.length})`}</Text>
+              <Button key="clear" plain onPress={() => undefined}>
+                <Text dimColor>{w.clear}</Text>
+              </Button>
+            </Box>
+          ) : null}
+          {ended.map(row)}
+        </Box>
+        <Box flexDirection="column" marginTop={1}>
+          <Text wrap="truncate-end">{'─'.repeat(Math.max(10, cols))}</Text>
+          {info}
+          {windows.length ? (
+            <Box flexDirection="column">
+              {info ? lightRule : null}
+              <Text bold>{w.limits}</Text>
+              {windows.map(limit)}
+            </Box>
+          ) : null}
+          <Box flexDirection="column">
+            {lightRule}
+            <Box flexDirection="row" gap={1}>
+              <Box flexGrow={1} flexShrink={1} minWidth={0}>
+                <Text>{w.warm}</Text>
+              </Box>
+              {/* A Button takes no colour: the state stands beside it in colour, green on, red off. */}
+              <Text color={wm.on ? 'success' : 'error'} bold>
+                {`● ${wm.on ? w.on : w.off}`}
+              </Text>
+              <Button key="warm" onPress={() => undefined}>
+                {w.toggle}
+              </Button>
+            </Box>
+            {warmText ? <Text dimColor wrap="truncate-end">{warmText}</Text> : null}
+          </Box>
+          <Box flexDirection="row" gap={1} justifyContent="flex-end">
+            <Button key="lang-de" plain dimColor={l !== 'de'} onPress={() => undefined}>
+              DE
+            </Button>
+            <Text dimColor>|</Text>
+            <Button key="lang-en" plain dimColor={l !== 'en'} onPress={() => undefined}>
+              EN
             </Button>
           </Box>
-        ) : null}
-        {ended.map(row)}
         </Box>
-        {info || windows.length ? (
-          <Box flexDirection="column" marginTop={1}>
-            <Text wrap="truncate-end">{'─'.repeat(Math.max(10, cols))}</Text>
-            {info}
-            {windows.length ? (
-              <Box flexDirection="column" marginTop={0}>
-                {info ? lightRule : null}
-                <Text bold>Nutzungslimits</Text>
-                {windows.map(limit)}
-              </Box>
-            ) : null}
-            <Box flexDirection="column" marginTop={0}>
-              {lightRule}
-              <Box flexDirection="row" gap={1}>
-                <Box flexGrow={1} flexShrink={1} minWidth={0}>
-                  <Text>Cache warmhalten</Text>
-                </Box>
-                {/* Ein Button nimmt keine Farbe an: der Zustand steht farbig daneben, grün an, rot aus. */}
-                <Text color={w.on ? 'success' : 'error'} bold>
-                  {w.on ? '● an' : '● aus'}
-                </Text>
-                <Button key="warm" onPress={() => undefined}>
-                  umschalten
-                </Button>
-              </Box>
-              {warmText ? <Text dimColor wrap="truncate-end">{warmText}</Text> : null}
-            </Box>
-          </Box>
-        ) : null}
       </Box>
     )
   })

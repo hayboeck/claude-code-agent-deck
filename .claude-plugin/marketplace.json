@@ -1,11 +1,12 @@
 {
   "name": "hayboeck-mods",
   "owner": { "name": "Manuel Hayböck" },
+  "metadata": { "description": "Mods for Claude Code by Manuel Hayböck (German/English)" },
   "plugins": [
     {
       "name": "subagent-monitor",
       "source": "./mods/subagent-monitor",
-      "description": "Seitenpanel mit einer Zeile pro Subagent: Aufgabe, Typ, Laufzeit und woran er gerade arbeitet"
+      "description": "Side pane: subagents with run time, current tool and tokens; session info, usage limits and keep-cache-warm switch (DE/EN)"
     }
   ]
 }
