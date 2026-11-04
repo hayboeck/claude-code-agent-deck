@@ -55,7 +55,7 @@ test('Limits erscheinen unten mit Prozent und Rücksetzzeit', async ($, on) => {
 
   for (const surface of ['terminal', 'vscode'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
-    expect((await ui.find({ type: 'Text', text: /^Session/ }))?.text).toBe('Session (5 h)')
+    expect((await ui.find({ type: 'Text', text: /^Session/ }))?.text).toBe('Session (5h)')
     expect((await ui.find({ type: 'Text', text: /^32/ }))?.text).toBe('32 %')
     expect((await ui.find({ type: 'Text', text: /^85k/ }))?.text).toBe('85k von 200k (43 %)')
     expect((await ui.find({ type: 'Text', text: /reset in 2h 10min/ }))?.text).toMatch(/^reset in 2h 10min( · 18:10)?$/)

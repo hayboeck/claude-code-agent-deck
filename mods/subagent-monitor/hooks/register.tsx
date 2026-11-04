@@ -29,7 +29,7 @@ const BAR_COLOR = '#2f6fd0'
 const BAR_WARN = '#d08a2f'
 const BAR_FULL = '#d0402f'
 const LIMIT_LABEL: Record<string, string> = {
-  five_hour: 'Session (5 h)',
+  five_hour: 'Session (5h)',
   seven_day: 'Woche (7 Tage)',
   spend_limit: 'Ausgabenlimit',
 }
