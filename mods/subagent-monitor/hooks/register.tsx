@@ -7,6 +7,7 @@ const NAME = 'subagent-monitor'
 const PANE = 'subagents'
 const TITLE = 'Subagents'
 const KEEP = 30 // agents kept in the list
+const HISTORY = 30 // steps kept per agent
 const TICK_MS = 1000
 const POLL_MS = 3000
 
@@ -16,6 +17,7 @@ const now = atom({ plugin: 'subagent-monitor', key: 'now' } as const, 0)
 const limits = atom({ plugin: 'subagent-monitor', key: 'limits' } as const, [], { shape: 'limits-1' })
 const session = atom({ plugin: 'subagent-monitor', key: 'session' } as const, null, { shape: 'session-1' })
 const warm = atom({ plugin: 'subagent-monitor', key: 'warm' } as const, { on: false, lastRequestAt: 0, pings: 0 }, { shape: 'warm-1' })
+const open = atom({ plugin: 'subagent-monitor', key: 'open' } as const, [], { shape: 'open-1' })
 
 // The prompt cache lives 60 min after the last request: ping once after 50 min of quiet.
 const WARM_AFTER_MS = 50 * 60_000
@@ -59,6 +61,9 @@ const TEXT = {
     steps: 'Schritte',
     tokens: 'Tokens',
     working: 'arbeitet',
+    stepsBtn: 'Schritte',
+    earlier: 'frühere Schritte',
+    stop: 'Stopp',
     session: 'Sitzung',
     started: 'Gestartet',
     context: 'Kontext',
@@ -90,6 +95,9 @@ const TEXT = {
     steps: 'steps',
     tokens: 'tokens',
     working: 'working',
+    stepsBtn: 'Steps',
+    earlier: 'earlier steps',
+    stop: 'Stop',
     session: 'Session',
     started: 'Started',
     context: 'Context',
@@ -380,7 +388,11 @@ export const register: Register = (on, options) => {
       const tool = e.tool as string
       const detail = describe(tool, e as unknown as Record<string, unknown>)
       await update($, agents, list =>
-        list.map(a => (a.id === id ? { ...a, tool, detail, steps: a.steps + 1 } : a)),
+        list.map(a =>
+          a.id === id
+            ? { ...a, tool, detail, steps: a.steps + 1, history: [...(a.history ?? []), { tool, detail }].slice(-HISTORY) }
+            : a,
+        ),
       )
     }
     return next(e)
@@ -436,6 +448,21 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
+  // Per agent: "steps-<id>" folds its step list open or shut, "stop-<id>" stops it.
+  on('ui.press', { plugin: NAME }, async ($, e, next) => {
+    const el = e.element ?? ''
+    if (el.startsWith('steps-')) {
+      const id = el.slice('steps-'.length)
+      await update($, open, ids => (ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]))
+    } else if (el.startsWith('stop-')) {
+      const id = el.slice('stop-'.length)
+      // A background subagent is a task under its agent id; TaskStop ends it as /tasks would.
+      await $.tool.call({ tool: 'TaskStop', task_id: id } as never).catch(() => undefined)
+      await finish($, id, 'failed')
+    }
+    return next(e)
+  })
+
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const els = $.ui.resolve(e)
     const { Box, Text, Button } = els
@@ -443,6 +470,7 @@ export const register: Register = (on, options) => {
     const list = await read($, agents)
     // Before the first tick the clock reads 0: take the real time then.
     const t = (await read($, now)) || (await $.clock.now())
+    const openIds = await read($, open)
     const running = list.filter(a => a.phase === 'running')
     const ended = list.filter(a => a.phase !== 'running').reverse()
 
@@ -475,6 +503,9 @@ export const register: Register = (on, options) => {
         : `${a.phase === 'done' ? '' : `${w.aborted} · `}${a.steps} ${w.steps}`
       const used = a.context !== undefined ? `${tokens(a.context + (a.output ?? 0), l)} ${w.tokens}` : ''
       const second = [a.type, a.model, doing, used].filter(Boolean).join(' · ')
+      const history = a.history ?? []
+      const isOpen = openIds.includes(a.id)
+      const older = a.steps - history.length
       return (
         <Box key={a.id} flexDirection="column" marginBottom={1}>
           <Box flexDirection="row" gap={1} alignItems="center">
@@ -486,9 +517,31 @@ export const register: Register = (on, options) => {
             </Box>
             <Text dimColor={!live}>{time}</Text>
           </Box>
-          <Box paddingLeft={2}>
-            <Text dimColor wrap="truncate-end">{second}</Text>
+          <Box paddingLeft={2} flexDirection="row" gap={1} alignItems="center">
+            <Box flexGrow={1} flexShrink={1} minWidth={0}>
+              <Text dimColor wrap="truncate-end">{second}</Text>
+            </Box>
+            {history.length ? (
+              <Button key={`steps-${a.id}`} plain onPress={() => undefined}>
+                {`${isOpen ? '▾' : '▸'} ${w.stepsBtn}`}
+              </Button>
+            ) : null}
+            {live ? (
+              <Button key={`stop-${a.id}`} plain onPress={() => undefined}>
+                {w.stop}
+              </Button>
+            ) : null}
           </Box>
+          {isOpen ? (
+            <Box paddingLeft={4} flexDirection="column">
+              {older > 0 ? <Text dimColor>{`… ${older} ${w.earlier}`}</Text> : null}
+              {history.map((s, i) => (
+                <Text key={`s-${a.id}-${i}`} dimColor wrap="truncate-end">
+                  {`${older + i + 1}. ${s.tool}${s.detail ? `: ${s.detail}` : ''}`}
+                </Text>
+              ))}
+            </Box>
+          ) : null}
         </Box>
       )
     }

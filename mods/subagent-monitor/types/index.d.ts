@@ -3,6 +3,8 @@ export type Phase = 'running' | 'done' | 'failed'
 /** Display language of the pane: the plugin setting `language`. */
 export type Lang = 'de' | 'en'
 
+export type Step = { tool: string; detail: string }
+
 export type Agent = {
   id: string
   description: string
@@ -15,6 +17,8 @@ export type Agent = {
   tool?: string
   detail?: string
   steps: number
+  /** The latest steps, oldest first (at most 30): tool and target, as `tool` and `detail` above. */
+  history?: Step[]
   /** Context size of the last request (input incl. cache) and generated tokens, summed. */
   context?: number
   output?: number
@@ -59,6 +63,8 @@ declare module 'claude-code' {
       limits: Shaped<RateLimit[]>
       session: Shaped<SessionInfo | null>
       warm: Shaped<Warm>
+      /** Ids of the agents whose steps are unfolded. */
+      open: Shaped<string[]>
     }
   }
 }

@@ -43,6 +43,38 @@ test('a subagent shows with its type and current tool', DE, async ($, on) => {
   await ui.unmount()
 })
 
+test('steps fold open and Stop ends a running subagent', async ($, on) => {
+  mock.clock(on, { now: 1000 })
+  const stopped: string[] = []
+  on('command.register', () => ({ value: { command: 'subagents' } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('agent.list', () => ({ value: [] }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'a1' }))
+  on('tool.call', (_, e) => {
+    if (e.tool === 'TaskStop') stopped.push(String((e as unknown as { task_id: string }).task_id))
+    return { result: {} }
+  })
+
+  await $.session.start({ cwd: '/', surface: 'vscode', isInteractive: true })
+  await $.agent.spawn({ prompt: 'x', description: 'Look around', subagentType: 'Explore' })
+  await $.tool.call({ tool: 'Read', file_path: 'C:/a/README.md', agentId: 'a1' })
+  await $.tool.call({ tool: 'Grep', pattern: 'TODO', path: 'C:/a/src', agentId: 'a1' })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
+  expect(await ui.find({ type: 'Text', text: /^1\. Read/ })).toBeUndefined()
+  await ui.press({ key: 'steps-a1' })
+  expect((await ui.find({ type: 'Text', text: /^1\. / }))?.text).toBe('1. Read: README.md')
+  expect((await ui.find({ type: 'Text', text: /^2\. / }))?.text).toBe('2. Grep: TODO in src')
+  await ui.press({ key: 'steps-a1' })
+  expect(await ui.find({ type: 'Text', text: /^1\. Read/ })).toBeUndefined()
+
+  await ui.press({ key: 'stop-a1' })
+  expect(stopped).toEqual(['a1'])
+  expect((await ui.find({ type: 'Text', text: /aborted/ }))?.text).toMatch(/aborted · 2 steps/)
+  await ui.unmount()
+})
+
 const MEASURE = {
   context: { window: 200000, tokens: 85000, percent: 43 },
   rateLimits: [
