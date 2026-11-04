@@ -33,9 +33,6 @@ Mit `y` die Mod-Sammlung hinzufügen, mit Enter den Bereich „user“ wählen u
 ### Was das Panel zeigt
 
 <img src="docs/subagent-monitor.png" width="320" alt="Das Panel subagent-monitor in VS Code: fertige Subagents, Sitzung, Nutzungslimits und der Knopf zum Warmhalten des Caches">
-
-<sub>Beispielwerte, so gewählt, dass man die Farben sieht.</sub>
-
 **Subagents.** Ein Eintrag pro Subagent, je zwei Zeilen: Aufgabe und Laufzeit (zählt live mit), darunter Typ, Modell, was er gerade tut (Werkzeug und Ziel: Datei, Befehl, Suchmuster) und seine verbrauchten Tokens. Ein sich drehender orangener Kreis heißt „arbeitet“, ein grünes ✔ „fertig“, ein rotes ✘ „vorzeitig abgebrochen“. `leeren` entfernt die fertigen.
 
 **Sitzung.** Wann dieser Chat begonnen hat, wie voll sein Kontext ist und wie viele Tokens er insgesamt verbraucht hat.

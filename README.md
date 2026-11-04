@@ -33,9 +33,6 @@ Answer `y` to add the marketplace, press Enter for the user scope, then pick the
 ### What the pane shows
 
 <img src="docs/subagent-monitor.png" width="320" alt="The subagent-monitor pane in VS Code: finished subagents, session, usage limits and the keep-cache-warm switch">
-
-<sub>Example values, chosen to show the colours.</sub>
-
 **Subagents.** One entry per subagent, two lines each: its task and run time (ticking live), then its type, model, what it is doing right now (the tool and its target: file, command, search pattern) and the tokens it has used. A turning orange circle means it is working, a green ✔ that it finished, a red ✘ that it stopped early. `clear` removes the finished ones.
 
 **Session.** When this chat started, how full its context is and how many tokens it has used in total.
