@@ -61,7 +61,6 @@ const TEXT = {
     steps: 'Schritte',
     tokens: 'Tokens',
     working: 'arbeitet',
-    stepsBtn: 'Schritte',
     earlier: 'frühere Schritte',
     stop: 'Stopp',
     session: 'Sitzung',
@@ -95,7 +94,6 @@ const TEXT = {
     steps: 'steps',
     tokens: 'tokens',
     working: 'working',
-    stepsBtn: 'Steps',
     earlier: 'earlier steps',
     stop: 'Stop',
     session: 'Session',
@@ -517,16 +515,14 @@ export const register: Register = (on, options) => {
             </Box>
             <Text dimColor={!live}>{time}</Text>
           </Box>
-          <Box paddingLeft={2}>
-            <Text dimColor wrap="truncate-end">{second}</Text>
-          </Box>
-          {/* The buttons sit on their own line right below, with no gap. */}
-          <Box paddingLeft={2} flexDirection="row" gap={1}>
+          {/* Info line: the arrow folds the steps open, Stop ends a running agent. */}
+          <Box paddingLeft={2} flexDirection="row" gap={1} alignItems="center">
             {history.length ? (
-              <Button key={`steps-${a.id}`} plain onPress={() => undefined}>
-                {`${isOpen ? '▾' : '▸'} ${w.stepsBtn}`}
-              </Button>
+              <Button key={`steps-${a.id}`} plain label={isOpen ? '▾' : '▸'} onPress={() => undefined} />
             ) : null}
+            <Box flexGrow={1} flexShrink={1} minWidth={0}>
+              <Text dimColor wrap="truncate-end">{second}</Text>
+            </Box>
             {live ? (
               <Button key={`stop-${a.id}`} plain onPress={() => undefined}>
                 {w.stop}
