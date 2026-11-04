@@ -320,19 +320,6 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'subagents', description: TEXT[l].command })
-    // A measuring tool for the model; if registering fails, the rest still runs.
-    await $.tool
-      .register({
-        name: 'cache_ping_test',
-        description:
-          'Measurement: sends count (1–5) cache pings back to back, as the "keep cache warm" switch does, and reports each ping\'s token counts and the usage limits before and after.',
-        inputSchema: {
-          type: 'object',
-          properties: { count: { type: 'integer', minimum: 1, maximum: 5 } },
-          required: ['count'],
-        },
-      })
-      .catch(() => undefined)
     await syncClock($)
     const r = await next(e)
     try {
@@ -435,27 +422,6 @@ export const register: Register = (on, options) => {
       await finish($, e.agentId, failed ? 'failed' : 'done')
     }
     return r
-  })
-
-  on('tool.call', { tool: 'mcp__subagent-monitor__cache_ping_test' }, async ($, e) => {
-    const count = Math.max(1, Math.min(5, Number((e as unknown as { count?: number }).count) || 1))
-    const limitsNow = async () =>
-      (await $.session.usage()).rateLimits.map(l => `${l.kind} ${l.percentUsed} %`).join(', ') || 'none reported'
-    const lines = [`before: ${await limitsNow()}`]
-    for (let i = 1; i <= count; i++) {
-      const r = await $.model.fork({ prompt: PING_PROMPT })
-      const u = 'usage' in r ? r.usage : undefined
-      const status = r.isAnswered ? 'ok' : `failed (${r.reason})`
-      lines.push(
-        u
-          ? `Ping ${i}: ${status} · cache read ${u.cache_read_input_tokens} · cache written ${u.cache_creation_input_tokens} · new ${u.input_tokens} · output ${u.output_tokens}`
-          : `Ping ${i}: ${status} · no token counts`,
-      )
-      lines.push(`  after: ${await limitsNow()}`)
-    }
-    const at = await $.clock.now()
-    await update($, warm, v => ({ ...v, lastRequestAt: at }))
-    return { result: lines.join('\n') } as never
   })
 
   on('ui.press', { plugin: NAME, element: 'warm' }, async ($, e, next) => {

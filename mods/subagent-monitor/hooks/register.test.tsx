@@ -92,7 +92,6 @@ test('keep warm pings once through a fork after 50 min of quiet', DE, async ($, 
   on('command.register', () => ({ value: { command: 'subagents' } }))
   on('agent.list', () => ({ value: [] }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
-  on('tool.register', () => ({ value: { tool: 'mcp__subagent-monitor__cache_ping_test' } }))
   on('session.usage', () => ({
     value: { startedAt: Date.parse('2026-11-04T14:00:00Z'), context: { window: 200000, tokens: 50000 }, rateLimits: [] },
   }))

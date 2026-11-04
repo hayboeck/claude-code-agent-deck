@@ -34,6 +34,8 @@ Mit `y` die Mod-Sammlung hinzufügen, mit Enter den Bereich „user“ wählen u
 
 <img src="docs/subagent-monitor.png" width="320" alt="Das Panel subagent-monitor in VS Code: fertige Subagents, Sitzung, Nutzungslimits und der Knopf zum Warmhalten des Caches">
 
+<sub>Beispielwerte, so gewählt, dass man die Farben sieht.</sub>
+
 **Subagents.** Ein Eintrag pro Subagent, je zwei Zeilen: Aufgabe und Laufzeit (zählt live mit), darunter Typ, Modell, was er gerade tut (Werkzeug und Ziel: Datei, Befehl, Suchmuster) und seine verbrauchten Tokens. Ein sich drehender orangener Kreis heißt „arbeitet“, ein grünes ✔ „fertig“, ein rotes ✘ „vorzeitig abgebrochen“. `leeren` entfernt die fertigen.
 
 **Sitzung.** Wann dieser Chat begonnen hat, wie voll sein Kontext ist und wie viele Tokens er insgesamt verbraucht hat.
@@ -62,10 +64,16 @@ Steht es auf **An** (grün angezeigt; rot **Aus** heißt ausgeschaltet; der Knop
 - **Kosten, gemessen:** Bei einem Chat mit 258k Kontext haben 5 Pings das 5-Stunden-Limit um höchstens einen Prozentpunkt bewegt, das Wochenlimit gar nicht. Aus dem Cache lesen kostet etwa ein Zehntel davon, denselben Text neu zu lesen.
 - Lohnt sich, wenn du nach einer Pause weitermachst. Bist du für heute fertig, schalte es aus.
 
+### Kostet die Mod Tokens?
+
+Nein. Die Mod läuft auf deinem Rechner und liest nur, was Claude Code ohnehin meldet: Subagents, Werkzeugaufrufe, Kontextgröße und Limits. Sie fügt deinem Chat und den Anfragen, die Claude schickt, nichts hinzu. Installiert und mit offenem Panel kostet sie also keine Tokens und nichts von deinen Limits.
+
+Die einzige Ausnahme ist **Cache warmhalten**, solange es auf **An** steht: Jeder Ping ist eine echte Anfrage, und er geht erst nach 50 Minuten raus, in denen du nichts geschrieben hast (Kosten siehe oben). Steht es auf **Aus**, kostet die Mod gar nichts.
+
 ### Was die Mod nicht tut
 
 - Sie schickt nichts irgendwohin außer den Pings oben, und die gehen über Claude Code an dasselbe Modell.
-- Sie speichert nur deine Sprachwahl. Alles andere lebt in der Sitzung und ist mit ihr weg.
+- Sie speichert nichts auf der Festplatte. Alles, was sie zeigt, lebt in der Sitzung und ist mit ihr weg; die Sprache ist eine normale Plugin-Einstellung.
 - Sie ändert nichts an deinem Chat, deinen Dateien oder deinen Einstellungen.
 
 ### Voraussetzungen

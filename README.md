@@ -34,6 +34,8 @@ Answer `y` to add the marketplace, press Enter for the user scope, then pick the
 
 <img src="docs/subagent-monitor.png" width="320" alt="The subagent-monitor pane in VS Code: finished subagents, session, usage limits and the keep-cache-warm switch">
 
+<sub>Example values, chosen to show the colours.</sub>
+
 **Subagents.** One entry per subagent, two lines each: its task and run time (ticking live), then its type, model, what it is doing right now (the tool and its target: file, command, search pattern) and the tokens it has used. A turning orange circle means it is working, a green ✔ that it finished, a red ✘ that it stopped early. `clear` removes the finished ones.
 
 **Session.** When this chat started, how full its context is and how many tokens it has used in total.
@@ -62,10 +64,16 @@ With the switch **On** (shown in green; red **Off** means switched off; the butt
 - **Cost, measured:** on a chat with a 258k context, 5 pings moved the 5-hour limit by at most one percentage point, and the weekly limit not at all. A cache read costs about a tenth of reading the same text fresh.
 - Worth it when you come back after a break. If you are done for the day, switch it off.
 
+### Does it cost tokens?
+
+No. The mod runs on your machine and only reads what Claude Code reports anyway: subagents, tool calls, context size and limits. It adds nothing to your chat or to the requests Claude sends, so having it installed and the pane open costs no tokens and nothing of your limits.
+
+The one exception is **Keep cache warm** while it is **On**: each ping is a real request, and it is sent only after 50 minutes in which you wrote nothing (see the cost above). Switched **Off**, the mod costs nothing at all.
+
 ### What it does not do
 
 - It sends nothing anywhere except the pings above, and those go through Claude Code to the same model.
-- It stores only your language choice. Everything else lives in the session and is gone when it ends.
+- It stores nothing on disk. Everything it shows lives in the session and is gone when it ends; the language is a normal plugin setting.
 - It changes nothing in your chat, your files or your settings.
 
 ### Requirements
