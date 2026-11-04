@@ -6,7 +6,7 @@ Eigene Mods für Claude Code (Terminal, VS Code, Desktop).
 
 | Mod | Was sie tut |
 | --- | --- |
-| [subagent-monitor](mods/subagent-monitor) | Seitenpanel mit einer Zeile pro Subagent: Aufgabe, Typ und Modell, Laufzeit (tickt live) und das Werkzeug, das er gerade aufruft, samt Ziel (Datei, Befehl, Suchmuster). Tokens je Subagent (Kontext, Ausgabe). Unten Sitzung (Start, Kontextgröße, Tokens gesamt) und Balken für Session- (5 h) und Wochenlimit mit Reset-Zeit. Öffnet sich beim ersten Subagent von selbst, sonst mit `/subagents`. |
+| [subagent-monitor](mods/subagent-monitor) | Seitenpanel mit einer Zeile pro Subagent: Aufgabe, Typ und Modell, Laufzeit (tickt live) und das Werkzeug, das er gerade aufruft, samt Ziel (Datei, Befehl, Suchmuster). Tokens je Subagent (Kontext, Ausgabe). Unten Sitzung (Start, Kontextgröße, Tokens gesamt) und Balken für Session- (5h) und Wochenlimit mit Reset-Zeit. Öffnet sich beim ersten Subagent von selbst, sonst mit `/subagents`. |
 
 ## Installieren
 
