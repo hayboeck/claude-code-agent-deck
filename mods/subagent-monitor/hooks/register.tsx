@@ -390,8 +390,6 @@ export const register: Register = on => {
     const s = await read($, session)
     const ctxPct =
       s?.contextTokens !== undefined && s.contextWindow ? (100 * s.contextTokens) / s.contextWindow : s?.contextPercent
-    // Gezählt wird ab dem Laden der Mod; lief die Sitzung vorher schon, steht das dabei.
-    const lateStart = s?.startedAt !== undefined && s.countingSince - s.startedAt > 60_000
     const info = s ? (
       <Box flexDirection="column">
         <Text bold>Sitzung</Text>
@@ -399,15 +397,13 @@ export const register: Register = on => {
         {s.contextTokens !== undefined
           ? pair(
               'ctx',
-              'Kontext jetzt',
+              'Kontext',
               `${tokens(s.contextTokens)}${s.contextWindow ? ` von ${tokens(s.contextWindow)}` : ''}${ctxPct !== undefined ? ` (${Math.round(ctxPct)} %)` : ''}`,
             )
           : null}
         {ctxPct !== undefined ? bar(ctxPct, 'Kontext') : null}
         {pair('in', 'Eingabe gesamt', `${tokens(s.input)} (Cache ${tokens(s.cacheRead)})`)}
         {pair('out', 'Ausgabe gesamt', tokens(s.output))}
-        {s.usd !== undefined ? pair('usd', 'API-Preis', `${s.usd.toFixed(2).replace('.', ',')} $`) : null}
-        {lateStart ? <Text dimColor>{`Tokens gezählt seit ${clockText(s.countingSince, false)}`}</Text> : null}
       </Box>
     ) : null
 
