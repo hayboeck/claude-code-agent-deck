@@ -114,6 +114,6 @@ test('keep warm pings once through a fork after 50 min of quiet', async ($, on) 
 test('an empty session shows a hint', async ($, on) => {
   mock.clock(on)
   const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
-  expect((await ui.find({ type: 'Text' }))?.text).toBe('Noch keine Subagents in dieser Sitzung.')
+  expect((await ui.find({ type: 'Text', text: /^Noch keine/ }))?.text).toBe('Noch keine Subagents in dieser Sitzung.')
   await ui.unmount()
 })

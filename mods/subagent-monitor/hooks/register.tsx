@@ -36,9 +36,13 @@ function limitColor(pct: number): string {
   return pct <= 40 ? GREEN : pct <= 60 ? YELLOW : pct <= 80 ? ORANGE : RED
 }
 
-/** Context bar by absolute size: green up to 250k, yellow to 500k, orange to 750k, red above. */
-function contextColor(n: number): string {
-  return n <= 250_000 ? GREEN : n <= 500_000 ? YELLOW : n <= 750_000 ? ORANGE : RED
+/**
+ * Context bar by share of the model's window, so it fits every model: green up to 25 %,
+ * yellow to 50 %, orange to 75 %, red above (on a 1M window: 250k / 500k / 750k).
+ * Answers get worse as the context fills, long before the window is full.
+ */
+function contextColor(pct: number): string {
+  return pct <= 25 ? GREEN : pct <= 50 ? YELLOW : pct <= 75 ? ORANGE : RED
 }
 
 // Every text the pane shows, per language.
@@ -584,7 +588,7 @@ export const register: Register = on => {
               `${tokens(s.contextTokens, l)}${s.contextWindow ? ` ${w.of} ${tokens(s.contextWindow, l)}` : ''}${ctxPct !== undefined ? ` (${Math.round(ctxPct)} %)` : ''}`,
             )
           : null}
-        {ctxPct !== undefined && s.contextTokens !== undefined ? bar(ctxPct, w.context, contextColor(s.contextTokens)) : null}
+        {ctxPct !== undefined ? bar(ctxPct, w.context, contextColor(ctxPct)) : null}
         {pair('used', w.used, tokens(s.input + s.output, l))}
       </Box>
     ) : null
@@ -605,6 +609,16 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column" minHeight={minHeight}>
+        {/* Language switch in the top right corner. */}
+        <Box flexDirection="row" gap={1} justifyContent="flex-end">
+          <Button key="lang-de" plain dimColor={l !== 'de'} onPress={() => undefined}>
+            DE
+          </Button>
+          <Text dimColor>|</Text>
+          <Button key="lang-en" plain dimColor={l !== 'en'} onPress={() => undefined}>
+            EN
+          </Button>
+        </Box>
         <Box flexDirection="column" flexGrow={1} flexShrink={1}>
           {list.length === 0 ? <Text dimColor>{w.none}</Text> : null}
           {running.length ? <Text bold>{`${w.running} (${running.length})`}</Text> : null}
@@ -644,15 +658,6 @@ export const register: Register = on => {
               </Button>
             </Box>
             {warmText ? <Text dimColor wrap="truncate-end">{warmText}</Text> : null}
-          </Box>
-          <Box flexDirection="row" gap={1} justifyContent="flex-end">
-            <Button key="lang-de" plain dimColor={l !== 'de'} onPress={() => undefined}>
-              DE
-            </Button>
-            <Text dimColor>|</Text>
-            <Button key="lang-en" plain dimColor={l !== 'en'} onPress={() => undefined}>
-              EN
-            </Button>
           </Box>
         </Box>
       </Box>
