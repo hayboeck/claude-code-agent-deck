@@ -143,6 +143,14 @@ function copyLimit(l: RateLimit): RateLimit {
   return l.resetsAt ? { kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt } : { kind: l.kind, percentUsed: l.percentUsed }
 }
 
+const SPIN = ['◐', '◓', '◑', '◒']
+const SPINNER_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12">' +
+  '<circle cx="6" cy="6" r="4.5" fill="none" stroke="#e08a1e" stroke-opacity="0.3" stroke-width="2"/>' +
+  '<path d="M6 1.5 A4.5 4.5 0 0 1 10.5 6" fill="none" stroke="#e08a1e" stroke-width="2" stroke-linecap="round">' +
+  '<animateTransform attributeName="transform" type="rotate" from="0 6 6" to="360 6 6" dur="1s" repeatCount="indefinite"/>' +
+  '</path></svg>'
+
 function barText(pct: number, cols: number): string {
   const n = Math.round((Math.max(0, Math.min(100, pct)) / 100) * cols)
   return '█'.repeat(n) + '░'.repeat(cols - n)
@@ -231,6 +239,19 @@ async function finish($: EngineInterface, id: string, phase: Phase) {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'subagents', description: 'Subagent-Monitor öffnen' })
+    // Messwerkzeug fürs Modell; schlägt das Anmelden fehl, läuft der Rest trotzdem.
+    await $.tool
+      .register({
+        name: 'cache_ping_test',
+        description:
+          'Messung: löst count (1–5) Cache-Pings direkt hintereinander aus, wie der Knopf „Cache warmhalten“, und meldet je Ping die Token-Zahlen und die Nutzungslimits davor und danach.',
+        inputSchema: {
+          type: 'object',
+          properties: { count: { type: 'integer', minimum: 1, maximum: 5 } },
+          required: ['count'],
+        },
+      })
+      .catch(() => undefined)
     await syncClock($)
     const r = await next(e)
     try {
@@ -335,6 +356,26 @@ export const register: Register = on => {
     return r
   })
 
+  on('tool.call', { tool: 'mcp__subagent-monitor__cache_ping_test' }, async ($, e) => {
+    const count = Math.max(1, Math.min(5, Number((e as unknown as { count?: number }).count) || 1))
+    const limitsNow = async () =>
+      (await $.session.usage()).rateLimits.map(l => `${l.kind} ${l.percentUsed} %`).join(', ') || 'keine Angabe'
+    const lines = [`vorher: ${await limitsNow()}`]
+    for (let i = 1; i <= count; i++) {
+      const r = await $.model.fork({ prompt: PING_PROMPT })
+      const u = "usage" in r ? r.usage : undefined
+      lines.push(
+        u
+          ? `Ping ${i}: ${r.isAnswered ? 'ok' : `fehlgeschlagen (${r.reason})`} · Cache gelesen ${u.cache_read_input_tokens} · Cache geschrieben ${u.cache_creation_input_tokens} · neu ${u.input_tokens} · Ausgabe ${u.output_tokens}`
+          : `Ping ${i}: ${r.isAnswered ? 'ok' : `fehlgeschlagen (${r.reason})`} · keine Token-Angabe`,
+      )
+      lines.push(`  danach: ${await limitsNow()}`)
+    }
+    const at = await $.clock.now()
+    await update($, warm, v => ({ ...v, lastRequestAt: at }))
+    return { result: lines.join('\n') } as never
+  })
+
   on('ui.press', { plugin: NAME, element: 'warm' }, async ($, e, next) => {
     const t = await $.clock.now()
     // Beim Einschalten zählt die Ruhe ab jetzt, falls noch keine Anfrage gesehen wurde.
@@ -356,34 +397,48 @@ export const register: Register = on => {
     const running = list.filter(a => a.phase === 'running')
     const ended = list.filter(a => a.phase !== 'running').reverse()
 
+    const Svg = e.surface !== 'terminal' && 'Svg' in els ? els.Svg : null
+
+    // Laufend: orangener Kreis, der sich dreht (SVG-Animation; im Terminal ein Zeichen pro Sekunde).
+    const mark = (a: Agent) => {
+      if (a.phase === 'running') {
+        return Svg ? (
+          <Svg source={SPINNER_SVG} alt="arbeitet" width={12} height={12} />
+        ) : (
+          <Text color="warning" bold>{SPIN[Math.floor(t / 1000) % SPIN.length]}</Text>
+        )
+      }
+      return a.phase === 'done' ? (
+        <Text color="success" bold>✔</Text>
+      ) : (
+        <Text color="error" bold>✘</Text>
+      )
+    }
+
+    // Zwei Zeilen je Agent: Aufgabe und Laufzeit, darunter Typ, Modell, Tätigkeit und Tokens.
     const row = (a: Agent) => {
       const live = a.phase === 'running'
-      const mark = live ? '●' : a.phase === 'done' ? '✓' : '✗'
-      const markColor = live ? 'warning' : a.phase === 'done' ? 'success' : 'error'
       const time = duration((live ? Math.max(t, a.startedAt) : (a.endedAt ?? a.startedAt)) - a.startedAt)
-      const who = [a.type, a.model].filter(Boolean).join(' · ')
       const doing = live
         ? a.tool
           ? `${a.tool}: ${a.detail || '…'}`
           : 'startet …'
-        : `${a.phase === 'done' ? 'fertig' : 'abgebrochen'} · ${a.steps} Schritte`
+        : `${a.phase === 'done' ? '' : 'abgebrochen · '}${a.steps} Schritte`
+      const used = a.context !== undefined ? `${tokens(a.context + (a.output ?? 0))} Tokens` : ''
+      const second = [a.type, a.model, doing, used].filter(Boolean).join(' · ')
       return (
         <Box key={a.id} flexDirection="column" marginBottom={1}>
-          <Box flexDirection="row" gap={1}>
-            <Text color={markColor}>{mark}</Text>
+          <Box flexDirection="row" gap={1} alignItems="center">
+            {mark(a)}
             <Box flexGrow={1} flexShrink={1} minWidth={0}>
-              <Text bold={live} dimColor={!live} wrap="truncate-end">
+              <Text bold={live} wrap="truncate-end">
                 {a.description}
               </Text>
             </Box>
             <Text dimColor={!live}>{time}</Text>
           </Box>
-          <Box paddingLeft={2} flexDirection="column">
-            <Text dimColor wrap="truncate-end">{who}</Text>
-            <Text dimColor={!live} wrap="truncate-end">{doing}</Text>
-            {a.context !== undefined ? (
-              <Text dimColor wrap="truncate-end">{`Kontext ${tokens(a.context)} · Ausgabe ${tokens(a.output ?? 0)} Tokens`}</Text>
-            ) : null}
+          <Box paddingLeft={2}>
+            <Text dimColor wrap="truncate-end">{second}</Text>
           </Box>
         </Box>
       )
@@ -391,14 +446,13 @@ export const register: Register = on => {
 
     const windows = await read($, limits)
     const cols = e.props.bodyColumns
-    const Svg = e.surface !== 'terminal' && 'Svg' in els ? els.Svg : null
-    const limit = (l: RateLimit) => {
+    const limit = (l: RateLimit, i: number) => {
       const pct = l.percentUsed
       const label = LIMIT_LABEL[l.kind] ?? l.kind
       // Das 5-h-Fenster endet immer heute oder morgen früh: Uhrzeit reicht.
       const reset = resetText(l.resetsAt, t, l.kind !== 'five_hour')
       return (
-        <Box key={`limit-${l.kind}`} flexDirection="column" marginTop={1}>
+        <Box key={`limit-${l.kind}`} flexDirection="column" marginTop={i ? 1 : 0}>
           <Box flexDirection="row" gap={1}>
             <Box flexGrow={1} flexShrink={1} minWidth={0}>
               <Text>{label}</Text>
