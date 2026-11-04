@@ -45,7 +45,7 @@ test('Limits erscheinen unten mit Prozent und Rücksetzzeit', async ($, on) => {
   mock.clock(on, { now: Date.parse('2026-11-04T15:00:00Z') })
   on('session.measure', (_, e) => ({ changed: e.changed }))
   await $.session.measure({
-    context: { window: 200000 } as never,
+    context: { window: 200000, tokens: 85000, percent: 43 },
     rateLimits: [
       { kind: 'five_hour', percentUsed: 8, resetsAt: '2026-11-04T17:10:00Z' },
       { kind: 'seven_day', percentUsed: 32, resetsAt: '2026-11-08T12:00:00Z' },
@@ -57,8 +57,9 @@ test('Limits erscheinen unten mit Prozent und Rücksetzzeit', async ($, on) => {
     const ui = await $.ui.mount({ ...PANE, surface })
     expect((await ui.find({ type: 'Text', text: /^Session/ }))?.text).toBe('Session (5 h)')
     expect((await ui.find({ type: 'Text', text: /^32/ }))?.text).toBe('32 %')
-    expect((await ui.find({ type: 'Text', text: /zurückgesetzt in 2 h 10 min/ }))?.text).toMatch(/^zurückgesetzt in 2 h 10 min( · 18:10)?$/)
-    expect((await ui.find({ type: 'Text', text: /zurückgesetzt in 3 d/ }))?.text).toMatch(/^zurückgesetzt in 3 d 21 h/)
+    expect((await ui.find({ type: 'Text', text: /^85k/ }))?.text).toBe('85k von 200k (43 %)')
+    expect((await ui.find({ type: 'Text', text: /reset in 2h 10min/ }))?.text).toMatch(/^reset in 2h 10min( · 18:10)?$/)
+    expect((await ui.find({ type: 'Text', text: /reset in 3d/ }))?.text).toMatch(/^reset in 3d 21h/)
     await ui.unmount()
   }
 })

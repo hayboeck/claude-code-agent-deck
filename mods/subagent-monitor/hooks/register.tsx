@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, TurnUsage } from 'claude-code'
 
-import type { Agent, Phase, RateLimit } from '../types'
+import type { Agent, Phase, RateLimit, SessionInfo } from '../types'
 
 const NAME = 'subagent-monitor'
 const PANE = 'subagents'
@@ -14,6 +14,7 @@ const POLL_MS = 3000
 const agents = atom({ plugin: 'subagent-monitor', key: 'agents' } as const, [], { shape: 'agents-1' })
 const now = atom({ plugin: 'subagent-monitor', key: 'now' } as const, 0)
 const limits = atom({ plugin: 'subagent-monitor', key: 'limits' } as const, [], { shape: 'limits-1' })
+const session = atom({ plugin: 'subagent-monitor', key: 'session' } as const, null, { shape: 'session-1' })
 
 const IDLE_TICK_MS = 30_000
 const BAR_COLOR = '#2f6fd0'
@@ -37,6 +38,35 @@ function duration(ms: number): string {
   const m = Math.floor((s % 3600) / 60)
   const sec = String(s % 60).padStart(2, '0')
   return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
+}
+
+/** 950 → „950“, 41 984 → „42k“, 1 234 567 → „1,23 M“ */
+function tokens(n: number): string {
+  if (n < 1000) return String(Math.round(n))
+  if (n < 1_000_000) return `${Math.round(n / 1000)}k`
+  return `${(n / 1_000_000).toFixed(2).replace('.', ',')} M`
+}
+
+/** Eingabe einer Anfrage samt Cache: so groß war der Kontext, den das Modell gelesen hat. */
+function contextOf(u: TurnUsage): number {
+  return u.input_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens
+}
+
+function contextFields(c: { tokens?: number; window: number; percent?: number }): Partial<SessionInfo> {
+  return {
+    contextWindow: c.window,
+    ...(c.tokens !== undefined ? { contextTokens: c.tokens } : {}),
+    ...(c.percent !== undefined ? { contextPercent: c.percent } : {}),
+  }
+}
+
+function clockText(at: number, withDate: boolean): string {
+  try {
+    const date: Intl.DateTimeFormatOptions = withDate ? { weekday: 'short', day: 'numeric', month: 'numeric' } : {}
+    return new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', ...date, hour: '2-digit', minute: '2-digit' }).format(at)
+  } catch {
+    return ''
+  }
 }
 
 function basename(p: string): string {
@@ -84,19 +114,8 @@ function resetText(iso: string | undefined, t: number, withDate: boolean): strin
   const d = Math.floor(min / 1440)
   const h = Math.floor((min % 1440) / 60)
   const m = min % 60
-  const rel = d ? `in ${d} d ${h} h` : h ? `in ${h} h ${m} min` : `in ${m} min`
-  let abs = ''
-  try {
-    const date: Intl.DateTimeFormatOptions = withDate ? { weekday: 'short', day: 'numeric', month: 'numeric' } : {}
-    abs = new Intl.DateTimeFormat('de-AT', {
-      timeZone: 'Europe/Vienna',
-      ...date,
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(at)
-  } catch {
-    abs = ''
-  }
+  const rel = d ? `in ${d}d ${h}h` : h ? `in ${h}h ${m}min` : `in ${m}min`
+  const abs = clockText(at, withDate)
   return abs ? `${rel} · ${abs}` : rel
 }
 
@@ -184,8 +203,15 @@ export const register: Register = on => {
     await syncClock($)
     const r = await next(e)
     try {
-      const { rateLimits } = await $.session.usage()
-      if (rateLimits.length) await update($, limits, () => rateLimits.map(copyLimit))
+      const u = await $.session.usage()
+      if (u.rateLimits.length) await update($, limits, () => u.rateLimits.map(copyLimit))
+      const t = await $.clock.now()
+      await update($, session, s => ({
+        ...(s ?? { input: 0, cacheRead: 0, output: 0, countingSince: t }),
+        startedAt: u.startedAt,
+        ...contextFields(u.context),
+        ...(u.cost ? { usd: u.cost.usd } : {}),
+      }))
     } catch {
       // ohne Abo oder vor der ersten Antwort: keine Limits, der Bereich bleibt weg
     }
@@ -195,6 +221,12 @@ export const register: Register = on => {
   // Nach jeder Antwort und wenn ein Limit um einen ganzen Prozentpunkt wandert.
   on('session.measure', async ($, e, next) => {
     if (e.changed.includes('rateLimits')) await update($, limits, () => e.rateLimits.map(copyLimit))
+    const t = await $.clock.now()
+    await update($, session, s => ({
+      ...(s ?? { input: 0, cacheRead: 0, output: 0, countingSince: t }),
+      ...contextFields(e.context),
+      ...(e.cost ? { usd: e.cost.usd } : {}),
+    }))
     return next(e)
   })
 
@@ -232,6 +264,33 @@ export const register: Register = on => {
       )
     }
     return next(e)
+  })
+
+  // Jede Modellanfrage: Kontext und Ausgabe je Subagent, Summen für die ganze Sitzung.
+  on('turn.step', async function* ($, e, next) {
+    const r = yield* next(e)
+    const u = r.usage
+    if (u) {
+      const id = e.agentId
+      const ctx = contextOf(u)
+      if (id) {
+        await update($, agents, list =>
+          list.map(a => (a.id === id ? { ...a, context: ctx, output: (a.output ?? 0) + u.output_tokens } : a)),
+        )
+      }
+      const t = await $.clock.now()
+      await update($, session, s => {
+        const base = s ?? { input: 0, cacheRead: 0, output: 0, countingSince: t }
+        return {
+          ...base,
+          ...(id ? {} : { contextTokens: ctx }),
+          input: base.input + ctx,
+          cacheRead: base.cacheRead + u.cache_read_input_tokens,
+          output: base.output + u.output_tokens,
+        }
+      })
+    }
+    return r
   })
 
   on('turn.complete', async ($, e, next) => {
@@ -282,6 +341,9 @@ export const register: Register = on => {
           <Box paddingLeft={2} flexDirection="column">
             <Text dimColor wrap="truncate-end">{who}</Text>
             <Text dimColor={!live} wrap="truncate-end">{doing}</Text>
+            {a.context !== undefined ? (
+              <Text dimColor wrap="truncate-end">{`Kontext ${tokens(a.context)} · Ausgabe ${tokens(a.output ?? 0)} Tokens`}</Text>
+            ) : null}
           </Box>
         </Box>
       )
@@ -303,22 +365,57 @@ export const register: Register = on => {
             </Box>
             <Text bold>{`${Math.round(pct)} %`}</Text>
           </Box>
-          {Svg ? (
-            <Svg source={barSvg(pct, Math.max(80, Math.floor(cols * 6.5)))} alt={`${label}: ${Math.round(pct)} % verbraucht`} height={6} />
-          ) : (
-            <Text color={pct >= 90 ? 'error' : pct >= 70 ? 'warning' : 'suggestion'}>{barText(pct, Math.max(10, cols - 2))}</Text>
-          )}
-          {reset ? <Text dimColor wrap="truncate-end">{`zurückgesetzt ${reset}`}</Text> : null}
+          {bar(pct, label)}
+          {reset ? <Text dimColor wrap="truncate-end">{`reset ${reset}`}</Text> : null}
         </Box>
       )
     }
 
-    // Volle Höhe, Liste wächst, Limits bleiben am unteren Rand. Im Terminal zählt die Höhe in
-    // Zeilen; die grafischen Oberflächen legen in Pixeln an, dort füllt 100 % das Panel.
-    const height = e.surface === 'terminal' ? e.props.scroll.bodyRows : '100%'
+    const bar = (pct: number, label: string) =>
+      Svg ? (
+        <Svg source={barSvg(pct, Math.max(80, Math.floor(cols * 6.5)))} alt={`${label}: ${Math.round(pct)} %`} height={6} />
+      ) : (
+        <Text color={pct >= 90 ? 'error' : pct >= 70 ? 'warning' : 'suggestion'}>{barText(pct, Math.max(10, cols - 2))}</Text>
+      )
+
+    const pair = (key: string, label: string, value: string) => (
+      <Box key={key} flexDirection="row" gap={1}>
+        <Box flexGrow={1} flexShrink={1} minWidth={0}>
+          <Text dimColor wrap="truncate-end">{label}</Text>
+        </Box>
+        <Text>{value}</Text>
+      </Box>
+    )
+
+    const s = await read($, session)
+    const ctxPct =
+      s?.contextTokens !== undefined && s.contextWindow ? (100 * s.contextTokens) / s.contextWindow : s?.contextPercent
+    // Gezählt wird ab dem Laden der Mod; lief die Sitzung vorher schon, steht das dabei.
+    const lateStart = s?.startedAt !== undefined && s.countingSince - s.startedAt > 60_000
+    const info = s ? (
+      <Box flexDirection="column">
+        <Text bold>Sitzung</Text>
+        {s.startedAt !== undefined ? pair('started', 'Gestartet', clockText(s.startedAt, true)) : null}
+        {s.contextTokens !== undefined
+          ? pair(
+              'ctx',
+              'Kontext jetzt',
+              `${tokens(s.contextTokens)}${s.contextWindow ? ` von ${tokens(s.contextWindow)}` : ''}${ctxPct !== undefined ? ` (${Math.round(ctxPct)} %)` : ''}`,
+            )
+          : null}
+        {ctxPct !== undefined ? bar(ctxPct, 'Kontext') : null}
+        {pair('in', 'Eingabe gesamt', `${tokens(s.input)} (Cache ${tokens(s.cacheRead)})`)}
+        {pair('out', 'Ausgabe gesamt', tokens(s.output))}
+        {s.usd !== undefined ? pair('usd', 'API-Preis', `${s.usd.toFixed(2).replace('.', ',')} $`) : null}
+        {lateStart ? <Text dimColor>{`Tokens gezählt seit ${clockText(s.countingSince, false)}`}</Text> : null}
+      </Box>
+    ) : null
+
+    // Mindestens so hoch wie das Panel, damit die Liste wächst und Sitzung und Limits unten stehen.
+    const minHeight = e.props.scroll.bodyRows
 
     return (
-      <Box flexDirection="column" height={height}>
+      <Box flexDirection="column" minHeight={minHeight}>
         <Box flexDirection="column" flexGrow={1} flexShrink={1}>
         {list.length === 0 ?<Text dimColor>Noch keine Subagents in dieser Sitzung.</Text> : null}
         {running.length ? <Text bold>{`Laufend (${running.length})`}</Text> : null}
@@ -333,11 +430,16 @@ export const register: Register = on => {
         ) : null}
         {ended.map(row)}
         </Box>
-        {windows.length ? (
+        {info || windows.length ? (
           <Box flexDirection="column" marginTop={1}>
             <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(10, cols))}</Text>
-            <Text bold>Nutzungslimits</Text>
-            {windows.map(limit)}
+            {info}
+            {windows.length ? (
+              <Box flexDirection="column" marginTop={info ? 1 : 0}>
+                <Text bold>Nutzungslimits</Text>
+                {windows.map(limit)}
+              </Box>
+            ) : null}
           </Box>
         ) : null}
       </Box>
