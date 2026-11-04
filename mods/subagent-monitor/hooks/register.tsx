@@ -460,7 +460,7 @@ export const register: Register = on => {
             <Text bold>{`${Math.round(pct)} %`}</Text>
           </Box>
           {bar(pct, label)}
-          {reset ? <Text dimColor wrap="truncate-end">{`reset ${reset}`}</Text> : null}
+          {reset ? <Text dimColor wrap="truncate-end">{`Reset ${reset}`}</Text> : null}
         </Box>
       )
     }
