@@ -508,8 +508,8 @@ export const register: Register = on => {
       ? [`nächster Ping in ${nextIn}min`, `${w.pings}/${MAX_PINGS}`, last].filter(Boolean).join(' · ')
       : last
 
-    // Leichter Trennstrich zwischen den Blöcken unten (gepunktet und blass, der obere bleibt durchgezogen).
-    const lightRule = <Text dimColor wrap="truncate-end">{'┈'.repeat(Math.max(10, cols))}</Text>
+    // Leichter Trennstrich zwischen den Blöcken unten (blass, der obere kräftig).
+    const lightRule = <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(10, cols))}</Text>
 
     // Mindestens so hoch wie das Panel, damit die Liste wächst und Sitzung und Limits unten stehen.
     const minHeight = e.props.scroll.bodyRows
@@ -532,16 +532,16 @@ export const register: Register = on => {
         </Box>
         {info || windows.length ? (
           <Box flexDirection="column" marginTop={1}>
-            <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(10, cols))}</Text>
+            <Text wrap="truncate-end">{'─'.repeat(Math.max(10, cols))}</Text>
             {info}
             {windows.length ? (
-              <Box flexDirection="column" marginTop={info ? 1 : 0}>
+              <Box flexDirection="column" marginTop={0}>
                 {info ? lightRule : null}
                 <Text bold>Nutzungslimits</Text>
                 {windows.map(limit)}
               </Box>
             ) : null}
-            <Box flexDirection="column" marginTop={1}>
+            <Box flexDirection="column" marginTop={0}>
               {lightRule}
               <Box flexDirection="row" gap={1}>
                 <Box flexGrow={1} flexShrink={1} minWidth={0}>
