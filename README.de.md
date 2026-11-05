@@ -66,7 +66,7 @@ Steht es auf **An** (grün angezeigt; rot **Aus** heißt ausgeschaltet; der Knop
 
 - **Höchstens 5 Pings in Folge** (etwa 4 Stunden Ruhe), dann schaltet es sich selbst aus, damit es nie über Nacht läuft.
 - **Kosten, gemessen:** Bei einem Chat mit 258k Kontext haben 5 Pings das 5-Stunden-Limit um höchstens einen Prozentpunkt bewegt, das Wochenlimit gar nicht. Aus dem Cache lesen kostet etwa ein Zehntel davon, denselben Text neu zu lesen.
-- **Hat es funktioniert?** Die Zeile unter dem Schalter sagt es: *letzter Ping 11:55 · 284k aus dem Cache ✓*. Ein ✗ mit *Cache war kalt* heißt, dass der Cache schon abgelaufen war. Der Hinweis von Claude Code *Prompt cache likely expired (idle 1h 23m)* zählt nur die Zeit seit deiner letzten Nachricht und sieht die Pings nicht. Er kann also erscheinen, obwohl der Cache warm ist.
+- **Hat es funktioniert?** Die Zeile unter dem Schalter sagt es: *letzter Ping 11:55 · 284k aus dem Cache ✓*. Ein ✗ mit *Cache war kalt* heißt, dass der Cache schon abgelaufen war. Der Hinweis von Claude Code *Prompt cache likely expired (idle 1h 23m)* zählt die Zeit seit deiner letzten Nachricht und scheint die Pings nicht mitzuzählen. Er kann also erscheinen, obwohl der Ping darüber den Cache warmgehalten hat.
 - Lohnt sich, wenn du nach einer Pause weitermachst. Bist du für heute fertig, schalte es aus.
 
 ## Kostet die Mod Tokens?

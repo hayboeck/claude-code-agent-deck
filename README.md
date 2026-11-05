@@ -66,7 +66,7 @@ With the switch **On** (shown in green; red **Off** means switched off; the butt
 
 - **At most 5 pings in a row** (about 4 hours of quiet), then it switches itself off, so it never runs all night.
 - **Cost, measured:** on a chat with a 258k context, 5 pings moved the 5-hour limit by at most one percentage point, and the weekly limit not at all. A cache read costs about a tenth of reading the same text fresh.
-- **Did it work?** The line under the switch says so: *last ping 11:55 · 284k read from cache ✓*. A ✗ with *cache was cold* means the cache had already expired. Claude Code's own note *Prompt cache likely expired (idle 1h 23m)* only counts the time since your last message and does not see the pings, so it can show although the cache is warm.
+- **Did it work?** The line under the switch says so: *last ping 11:55 · 284k read from cache ✓*. A ✗ with *cache was cold* means the cache had already expired. Claude Code's own note *Prompt cache likely expired (idle 1h 23m)* counts the time since your last message; it does not seem to count the pings, so it can show although the ping above kept the cache warm.
 - Worth it when you come back after a break. If you are done for the day, switch it off.
 
 ## Does it cost tokens?
