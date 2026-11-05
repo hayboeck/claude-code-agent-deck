@@ -57,7 +57,7 @@ export type Warm = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'subagent-monitor': {
+    'agent-deck': {
       agents: Shaped<Agent[]>
       now: number
       limits: Shaped<RateLimit[]>

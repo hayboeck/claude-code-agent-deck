@@ -4,11 +4,11 @@ import { expect, mock, test } from 'claude-code/testing'
 const DE = { options: { language: 'de' } }
 
 const PANE = {
-  plugin: 'subagent-monitor',
+  plugin: 'agent-deck',
   component: 'Pane',
-  requestId: 'subagents',
+  requestId: 'agentdeck',
   props: {
-    title: 'Subagents',
+    title: 'Agent Deck',
     isFocused: false,
     bodyColumns: 50,
     placement: 'dock',
@@ -19,7 +19,7 @@ const PANE = {
 
 test('a subagent shows with its type and current tool', DE, async ($, on) => {
   const clock = mock.clock(on, { now: 1000 })
-  on('command.register', () => ({ value: { command: 'subagents' } }))
+  on('command.register', () => ({ value: { command: 'agentdeck' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('agent.list', () => ({ value: [] }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
@@ -46,7 +46,7 @@ test('a subagent shows with its type and current tool', DE, async ($, on) => {
 test('steps fold open and Stop ends a running subagent', async ($, on) => {
   mock.clock(on, { now: 1000 })
   const stopped: string[] = []
-  on('command.register', () => ({ value: { command: 'subagents' } }))
+  on('command.register', () => ({ value: { command: 'agentdeck' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('agent.list', () => ({ value: [] }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
@@ -121,7 +121,7 @@ test('without a setting every text is English', async ($, on) => {
 test('keep warm pings once through a fork after 50 min of quiet', DE, async ($, on) => {
   const clock = mock.clock(on, { now: Date.parse('2026-11-04T15:00:00Z') })
   const forks: string[] = []
-  on('command.register', () => ({ value: { command: 'subagents' } }))
+  on('command.register', () => ({ value: { command: 'agentdeck' } }))
   on('agent.list', () => ({ value: [] }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.usage', () => ({
@@ -154,7 +154,7 @@ test('an empty session shows a hint', DE, async ($, on) => {
 
 test('a long info line is cut off, not wrapped', async ($, on) => {
   mock.clock(on, { now: 1000 })
-  on('command.register', () => ({ value: { command: 'subagents' } }))
+  on('command.register', () => ({ value: { command: 'agentdeck' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('agent.list', () => ({ value: [] }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))

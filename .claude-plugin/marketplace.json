@@ -1,12 +1,12 @@
 {
-  "name": "hayboeck-mods",
+  "name": "claude-code-agent-deck",
   "owner": { "name": "Manuel Hayböck" },
-  "metadata": { "description": "Mods for Claude Code by Manuel Hayböck (German/English)" },
+  "metadata": { "description": "Claude Code Agent Deck: a side pane for your subagents, context and usage limits (English/German)" },
   "plugins": [
     {
-      "name": "subagent-monitor",
-      "source": "./mods/subagent-monitor",
-      "description": "Side pane: subagents with run time, current tool and tokens; session info, usage limits and keep-cache-warm switch (DE/EN)"
+      "name": "agent-deck",
+      "source": "./mods/agent-deck",
+      "description": "Side pane with your subagents (run time, current tool, tokens, steps, Stop), session context, usage limits and a keep-cache-warm switch (EN/DE); optimized for VS Code"
     }
   ]
 }

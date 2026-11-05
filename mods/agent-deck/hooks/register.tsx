@@ -3,21 +3,21 @@ import type { EngineInterface, Register, TurnUsage } from 'claude-code'
 
 import type { Agent, Lang, Phase, RateLimit, SessionInfo } from '../types'
 
-const NAME = 'subagent-monitor'
-const PANE = 'subagents'
-const TITLE = 'Subagents'
+const NAME = 'agent-deck'
+const PANE = 'agentdeck'
+const TITLE = 'Agent Deck'
 const KEEP = 30 // agents kept in the list
 const HISTORY = 30 // steps kept per agent
 const TICK_MS = 1000
 const POLL_MS = 3000
 
 // Change a shape tag when that value's fields change: values an earlier version stored are then dropped.
-const agents = atom({ plugin: 'subagent-monitor', key: 'agents' } as const, [], { shape: 'agents-1' })
-const now = atom({ plugin: 'subagent-monitor', key: 'now' } as const, 0)
-const limits = atom({ plugin: 'subagent-monitor', key: 'limits' } as const, [], { shape: 'limits-1' })
-const session = atom({ plugin: 'subagent-monitor', key: 'session' } as const, null, { shape: 'session-1' })
-const warm = atom({ plugin: 'subagent-monitor', key: 'warm' } as const, { on: false, lastRequestAt: 0, pings: 0 }, { shape: 'warm-1' })
-const open = atom({ plugin: 'subagent-monitor', key: 'open' } as const, [], { shape: 'open-1' })
+const agents = atom({ plugin: 'agent-deck', key: 'agents' } as const, [], { shape: 'agents-1' })
+const now = atom({ plugin: 'agent-deck', key: 'now' } as const, 0)
+const limits = atom({ plugin: 'agent-deck', key: 'limits' } as const, [], { shape: 'limits-1' })
+const session = atom({ plugin: 'agent-deck', key: 'session' } as const, null, { shape: 'session-1' })
+const warm = atom({ plugin: 'agent-deck', key: 'warm' } as const, { on: false, lastRequestAt: 0, pings: 0 }, { shape: 'warm-1' })
+const open = atom({ plugin: 'agent-deck', key: 'open' } as const, [], { shape: 'open-1' })
 
 // The prompt cache lives 60 min after the last request: ping once after 50 min of quiet.
 const WARM_AFTER_MS = 50 * 60_000
@@ -50,8 +50,8 @@ function contextColor(pct: number): string {
 const TEXT = {
   de: {
     locale: 'de-AT',
-    command: 'Subagent-Monitor öffnen',
-    opened: 'Subagent-Monitor geöffnet.',
+    command: 'Agent Deck öffnen',
+    opened: 'Agent Deck geöffnet.',
     none: 'Noch keine Subagents in dieser Sitzung.',
     running: 'Laufend',
     ended: 'Beendet',
@@ -84,8 +84,8 @@ const TEXT = {
   },
   en: {
     locale: 'en-GB',
-    command: 'Open the subagent monitor',
-    opened: 'Subagent monitor opened.',
+    command: 'Open the Agent Deck',
+    opened: 'Agent Deck opened.',
     none: 'No subagents in this session yet.',
     running: 'Running',
     ended: 'Finished',
@@ -327,7 +327,7 @@ export const register: Register = (on, options) => {
   const l: Lang = options.language === 'de' ? 'de' : 'en'
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'subagents', description: TEXT[l].command })
+    await $.command.register({ name: 'agentdeck', description: TEXT[l].command })
     await syncClock($)
     const r = await next(e)
     try {
@@ -358,7 +358,7 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  on('command.run', { command: 'subagents' }, async $ => {
+  on('command.run', { command: 'agentdeck' }, async $ => {
     await $.ui.open({ id: PANE, title: TITLE })
     return { text: TEXT[l].opened }
   })

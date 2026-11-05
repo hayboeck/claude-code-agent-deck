@@ -1,8 +1,9 @@
 {
-  "name": "subagent-monitor",
-  "version": "0.8.8",
-  "description": "Side pane: subagents with run time, current tool and tokens; session info, usage limits and keep-cache-warm switch (DE/EN)",
+  "name": "agent-deck",
+  "version": "0.9.0",
+  "description": "Claude Code Agent Deck: side pane with your subagents (run time, current tool, tokens, steps, Stop), session context, usage limits and a keep-cache-warm switch (EN/DE); optimized for VS Code",
   "author": { "name": "Manuel Hayböck" },
+  "license": "MIT",
   "types": "./types/index.d.ts",
   "userConfig": {
     "language": {

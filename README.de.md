@@ -1,38 +1,32 @@
-# claude-mods
+# Claude Code Agent Deck
 
 [English](README.md) | **Deutsch**
 
-Mods für [Claude Code](https://claude.com/claude-code) von Manuel Hayböck. Installiert werden sie mit einer Zeile im Eingabefeld von Claude Code; sie laufen im Terminal, in VS Code und in der Desktop-App.
+Ein Seitenpanel für [Claude Code](https://claude.com/claude-code), das zeigt, was deine Subagents gerade tun, wie voll der Kontext ist, wie viel von deinen Nutzungslimits übrig ist, und das auf Wunsch den Prompt-Cache warmhält. Von Manuel Hayböck.
 
-| Mod | In einem Satz |
-| --- | --- |
-| [subagent-monitor](#subagent-monitor) | Ein Seitenpanel, das zeigt, was deine Subagents gerade tun, wie voll der Kontext ist, wie viel von deinen Nutzungslimits übrig ist, und das auf Wunsch den Prompt-Cache warmhält. |
+**Optimiert für VS Code.** Es läuft auch im Terminal und in der Desktop-App, abgestimmt und geprüft ist das Layout aber in der Claude-Code-Erweiterung für VS Code.
 
----
-
-## subagent-monitor
-
-### Installieren
+## Installieren
 
 Im Eingabefeld von Claude Code:
 
 ```
-/plugin install subagent-monitor --marketplace hayboeck/claude-mods
+/plugin install agent-deck --marketplace hayboeck/claude-code-agent-deck
 ```
 
 Mit `y` die Mod-Sammlung hinzufügen, mit Enter den Bereich „user“ wählen und dann die **Sprache** des Panels: `en` (Englisch, Standard) oder `de` (Deutsch). Die Mod ist sofort aktiv und in jeder neuen Sitzung.
 
 | | |
 | --- | --- |
-| Panel öffnen | `/subagents` (öffnet sich auch von selbst beim ersten Subagent) |
-| Aktualisieren | `/plugin update subagent-monitor`, dann `/reload-plugins` |
-| Sprache ändern | `/config`, Zeile *subagent-monitor › Language*, oder Claude bitten: „stell den Subagent-Monitor auf Deutsch“ |
-| Entfernen | `/plugin uninstall subagent-monitor` |
-| Stattdessen aus der Shell | `claude plugin install subagent-monitor --marketplace hayboeck/claude-mods` |
+| Panel öffnen | `/agentdeck` (öffnet sich auch von selbst beim ersten Subagent) |
+| Aktualisieren | `/plugin update agent-deck`, dann `/reload-plugins` |
+| Sprache ändern | `/config`, Zeile *agent-deck › Language*, oder Claude bitten: „stell das Agent Deck auf Deutsch“ |
+| Entfernen | `/plugin uninstall agent-deck` |
+| Stattdessen aus der Shell | `claude plugin install agent-deck --marketplace hayboeck/claude-code-agent-deck` |
 
-### Was das Panel zeigt
+## Was das Panel zeigt
 
-<img src="docs/subagent-monitor.png" width="320" alt="Das Panel subagent-monitor in VS Code: fertige Subagents, Sitzung, Nutzungslimits und der Knopf zum Warmhalten des Caches">
+<img src="docs/agent-deck.png" width="320" alt="Das Agent Deck in VS Code: fertige Subagents, Sitzung, Nutzungslimits und der Knopf zum Warmhalten des Caches">
 **Subagents.** Ein Eintrag pro Subagent: Aufgabe und Laufzeit (zählt live mit), darunter in einer Zeile Schritte, verbrauchte Tokens (T.), Modell und Typ sowie was er gerade tut (Werkzeug und Ziel: Datei, Befehl, Suchmuster); ist die Zeile zu lang fürs Panel, endet sie mit …. Ein sich drehender orangener Kreis heißt „arbeitet“, ein grünes ✔ „fertig“, ein rotes ✘ „vorzeitig abgebrochen“. **▸** klappt die Liste seiner Schritte auf (die letzten 30), **Stopp**, darunter solange er läuft, hält ihn an, und `leeren` entfernt die fertigen.
 
 **Sitzung.** Wann dieser Chat begonnen hat, wie voll sein Kontext ist und wie viele Tokens er insgesamt verbraucht hat.
@@ -41,7 +35,7 @@ Mit `y` die Mod-Sammlung hinzufügen, mit Enter den Bereich „user“ wählen u
 
 **Sprache.** Englisch oder Deutsch, gewählt beim Installieren; eine Änderung lädt das Panel sofort neu.
 
-### Warum diese Farben
+## Warum diese Farben
 
 | Balken | Grün | Gelb | Orange | Rot |
 | --- | --- | --- | --- | --- |
@@ -51,7 +45,7 @@ Mit `y` die Mod-Sammlung hinzufügen, mit Enter den Bereich „user“ wählen u
 - **Limits:** Die Farbe zeigt auf einen Blick, wie sparsam du sein solltest. Grün: frei arbeiten. Gelb und Orange: größere Aufgaben einplanen. Rot: Das Limit ist nah, und die nächste lange Aufgabe passt womöglich nicht mehr hinein.
 - **Kontext:** Die Antworten eines Modells werden schlechter, je voller sein Kontext ist, und zwar lange bevor das Fenster voll ist. Es verliert Details vom Anfang des Chats und hält sich weniger verlässlich an frühere Anweisungen. Der Balken wird gelb, wenn das spürbar wird, und rot, wenn es Zeit für `/compact` oder einen neuen Chat ist. Die Mod liest die Fenstergröße des gerade verwendeten Modells aus Claude Code, so passen die Schwellen zu jedem Modell: Bei einem 1M-Fenster liegen sie bei 250k, 500k und 750k Tokens.
 
-### Cache warmhalten
+## Cache warmhalten
 
 Claude Code hält deinen Chat 60 Minuten nach der letzten Anfrage im Prompt-Cache von Anthropic. Ist der Cache abgelaufen, muss die nächste Nachricht den ganzen Chat neu einlesen. Das kostet viel mehr von deinen Limits als eine Nachricht bei warmem Cache.
 
@@ -61,29 +55,33 @@ Steht es auf **An** (grün angezeigt; rot **Aus** heißt ausgeschaltet; der Knop
 - **Kosten, gemessen:** Bei einem Chat mit 258k Kontext haben 5 Pings das 5-Stunden-Limit um höchstens einen Prozentpunkt bewegt, das Wochenlimit gar nicht. Aus dem Cache lesen kostet etwa ein Zehntel davon, denselben Text neu zu lesen.
 - Lohnt sich, wenn du nach einer Pause weitermachst. Bist du für heute fertig, schalte es aus.
 
-### Kostet die Mod Tokens?
+## Kostet die Mod Tokens?
 
 Nein. Die Mod läuft auf deinem Rechner und liest nur, was Claude Code ohnehin meldet: Subagents, Werkzeugaufrufe, Kontextgröße und Limits. Sie fügt deinem Chat und den Anfragen, die Claude schickt, nichts hinzu. Installiert und mit offenem Panel kostet sie also keine Tokens und nichts von deinen Limits.
 
 Die einzige Ausnahme ist **Cache warmhalten**, solange es auf **An** steht: Jeder Ping ist eine echte Anfrage, und er geht erst nach 50 Minuten raus, in denen du nichts geschrieben hast (Kosten siehe oben). Steht es auf **Aus**, kostet die Mod gar nichts.
 
-### Was die Mod nicht tut
+## Was die Mod nicht tut
 
 - Sie schickt nichts irgendwohin außer den Pings oben, und die gehen über Claude Code an dasselbe Modell.
 - Sie speichert nichts auf der Festplatte. Alles, was sie zeigt, lebt in der Sitzung und ist mit ihr weg; die Sprache ist eine normale Plugin-Einstellung.
 - Sie ändert nichts an deinem Chat, deinen Dateien oder deinen Einstellungen.
 
-### Voraussetzungen
+## Voraussetzungen
 
-Eine Claude-Code-Version mit Mod-Unterstützung (getestet mit 2.1.314). Die Nutzungslimits erscheinen nur mit einem Claude-Abo (Pro oder Max).
+Eine Claude-Code-Version mit Mod-Unterstützung (getestet mit 2.1.318). Die Nutzungslimits erscheinen nur mit einem Claude-Abo (Pro oder Max).
+
+## Lizenz
+
+[MIT](LICENSE): frei verwendbar, veränderbar und weitergebbar, solange der Urheberhinweis erhalten bleibt.
 
 ---
 
 ## Entwickeln
 
 ```
-claude plugin validate mods/<mod>
-claude plugin test mods/<mod>
+claude plugin validate mods/agent-deck
+claude plugin test mods/agent-deck
 ```
 
-Zum Ausprobieren ohne Installation: `claude --plugin-dir mods/<mod>`.
+Zum Ausprobieren ohne Installation: `claude --plugin-dir mods/agent-deck`.
