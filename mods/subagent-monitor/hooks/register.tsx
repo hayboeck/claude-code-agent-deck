@@ -625,14 +625,13 @@ export const register: Register = (on, options) => {
     // Light rule between the blocks at the bottom (dim; the top one is strong).
     const lightRule = <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(10, cols))}</Text>
 
-    // As tall as the pane, so the list grows and session and limits sit at the bottom. The
-    // terminal counts rows; VS Code and the desktop round the pane's height down to whole rows
-    // (an empty strip under the last row), but hold the tree in a full-height flex column, so
-    // there the tree just grows into it.
-    const minHeight = e.surface === 'terminal' ? e.props.scroll.bodyRows : undefined
+    // At least as tall as the pane, so the list grows and session and limits sit at the bottom.
+    // VS Code and the desktop give the tree no full-height parent and round the pane's height
+    // down to whole rows of a slightly taller line than the tree's: one row more fills it.
+    const minHeight = e.props.scroll.bodyRows + (e.surface === 'terminal' ? 0 : 1)
 
     return (
-      <Box flexDirection="column" flexGrow={1} minHeight={minHeight}>
+      <Box flexDirection="column" minHeight={minHeight}>
         <Box flexDirection="column" flexGrow={1} flexShrink={1}>
           {list.length === 0 ? <Text dimColor>{w.none}</Text> : null}
           {running.length ? <Text bold>{`${w.running} (${running.length})`}</Text> : null}
