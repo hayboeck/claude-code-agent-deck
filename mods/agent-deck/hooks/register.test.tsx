@@ -118,19 +118,41 @@ test('without a setting every text is English', async ($, on) => {
   await ui.unmount()
 })
 
-test('keep warm pings once through a fork after 50 min of quiet', DE, async ($, on) => {
-  const clock = mock.clock(on, { now: Date.parse('2026-11-04T15:00:00Z') })
-  const forks: string[] = []
+// Plays the ping's turn as the engine would: the prompt enters, a turn starts, one request.
+function engine(on: Parameters<Parameters<typeof test>[2]>[1], cache: { read: number; write: number }) {
+  const sent: string[] = []
   on('command.register', () => ({ value: { command: 'agentdeck' } }))
   on('agent.list', () => ({ value: [] }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.usage', () => ({
     value: { startedAt: Date.parse('2026-11-04T14:00:00Z'), context: { window: 200000, tokens: 50000 }, rateLimits: [] },
   }))
-  on('model.fork', (_, e) => {
-    forks.push(e.prompt)
-    return { value: { isAnswered: true, text: 'OK', usage: { input_tokens: 5, output_tokens: 2, cache_read_input_tokens: 50000, cache_creation_input_tokens: 0 } } }
+  on('prompt.submit', (_, e) => {
+    sent.push(e.text)
+    return { text: e.text, origin: e.origin }
   })
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  on('turn.step', async function* (_, e) {
+    return {
+      turnId: e.turnId, index: e.index, answer: 'OK', toolUses: [], stopReason: 'end_turn' as const,
+      usage: { input_tokens: 5, output_tokens: 2, cache_read_input_tokens: cache.read, cache_creation_input_tokens: cache.write },
+    }
+  })
+  on('turn.complete', (_, e) => ({ text: '' }))
+  on('tool.call', () => ({ result: {} }))
+  return sent
+}
+
+async function pingTurn($: Parameters<Parameters<typeof test>[2]>[0]) {
+  await $.turn.start({ text: 'ping', turnId: 't-ping' })
+  const step = $.turn.step({ turnId: 't-ping', index: 0, model: 'opus', messageCount: 3 })
+  for await (const _ of step) void _
+  await step.result
+}
+
+test('keep warm sends a ping message in the set language after 50 min of quiet', DE, async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-11-04T15:00:00Z') })
+  const sent = engine(on, { read: 50000, write: 300 })
   await $.session.start({ cwd: '/', surface: 'vscode', isInteractive: true })
 
   const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
@@ -138,29 +160,31 @@ test('keep warm pings once through a fork after 50 min of quiet', DE, async ($, 
   expect((await ui.find({ type: 'Text', text: /nächster Ping/ }))?.text).toMatch(/^nächster Ping in 50min · 0\/5/)
 
   await clock.advance(49 * 60_000)
-  expect(forks.length).toBe(0)
+  expect(sent.length).toBe(0)
   await clock.advance(2 * 60_000)
-  expect(forks.length).toBe(1)
-  expect((await ui.find({ type: 'Text', text: /nächster Ping/ }))?.text).toMatch(/^nächster Ping in 4\d+min · 1\/5$/)
+  expect(sent).toEqual(['Cache-Ping von Agent Deck: antworte nur mit OK, keine Werkzeuge.'])
+  expect((await ui.find({ type: 'Text', text: /letzter Ping/ }))?.text).toMatch(/^letzter Ping \S+ …$/)
+
+  await pingTurn($)
+  // Tools are refused while the ping's turn runs.
+  const denied = await $.tool.call({ tool: 'Read', file_path: 'C:/a.txt' })
+  expect(JSON.stringify(denied)).toContain('no tools')
+  await $.turn.complete({ turnId: 't-ping', answer: 'OK', durationMs: 900, isAborted: false, reason: 'answer' } as never)
+
+  expect((await ui.find({ type: 'Text', text: /nächster Ping/ }))?.text).toMatch(/^nächster Ping in \d+min · 1\/5$/)
   expect((await ui.find({ type: 'Text', text: /letzter Ping/ }))?.text).toMatch(/^letzter Ping \S+ · 50k aus dem Cache ✓$/)
   await ui.unmount()
 })
 
-test('a ping that finds the cache cold says so', async ($, on) => {
+test('a ping that finds the cache cold says so, in English by default', async ($, on) => {
   const clock = mock.clock(on, { now: Date.parse('2026-11-04T15:00:00Z') })
-  on('command.register', () => ({ value: { command: 'agentdeck' } }))
-  on('agent.list', () => ({ value: [] }))
-  on('session.start', (_, e) => ({ cwd: e.cwd }))
-  on('session.usage', () => ({
-    value: { startedAt: Date.parse('2026-11-04T14:00:00Z'), context: { window: 200000, tokens: 50000 }, rateLimits: [] },
-  }))
-  on('model.fork', () => ({
-    value: { isAnswered: true, text: 'OK', usage: { input_tokens: 5, output_tokens: 2, cache_read_input_tokens: 3000, cache_creation_input_tokens: 47000 } },
-  }))
+  const sent = engine(on, { read: 3000, write: 47000 })
   await $.session.start({ cwd: '/', surface: 'vscode', isInteractive: true })
   const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
   await ui.press({ key: 'warm' })
   await clock.advance(51 * 60_000)
+  expect(sent).toEqual(['Cache ping from Agent Deck: reply only with OK, use no tools.'])
+  await pingTurn($)
   expect((await ui.find({ type: 'Text', text: /last ping/ }))?.text).toMatch(/^last ping \S+ · cache was cold, written afresh: 47k ✗$/)
   await ui.unmount()
 })

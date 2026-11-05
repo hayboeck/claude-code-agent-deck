@@ -23,8 +23,17 @@ const open = atom({ plugin: 'agent-deck', key: 'open' } as const, [], { shape: '
 const WARM_AFTER_MS = 50 * 60_000
 // Guard against running all night: after this many pings in a row it switches itself off.
 const MAX_PINGS = 5
-const PING_PROMPT = 'Cache ping. Reply only with: OK'
+// The ping is a real message in the chat (a hidden fork was not seen by Claude Code, which
+// then counted the chat as idle, warned that the cache had expired and compacted it).
+const PING_TEXT = {
+  de: 'Cache-Ping von Agent Deck: antworte nur mit OK, keine Werkzeuge.',
+  en: 'Cache ping from Agent Deck: reply only with OK, use no tools.',
+}
 let pinging = false
+// The ping's turn: noticed when its prompt enters, then known by the id of the turn it starts.
+let pingPending = false
+let pingTurnId: string | null = null
+let lang: 'de' | 'en' = 'en'
 
 const IDLE_TICK_MS = 30_000
 const GREEN = '#2e9e44'
@@ -285,20 +294,32 @@ async function checkWarm($: EngineInterface, t: number) {
   if (!w.on || pinging || t - w.lastRequestAt < WARM_AFTER_MS) return
   pinging = true
   try {
-    // A fork: the chat as last sent plus one line, without tools and invisible in the chat.
-    // It reads the cache and so restarts its 60 minutes.
-    const r = await $.model.fork({ prompt: PING_PROMPT })
-    // It worked when the chat came from the cache: more read from it than written to it.
-    const read_ = r.usage?.cache_read_input_tokens ?? 0
-    const write = r.usage?.cache_creation_input_tokens ?? 0
-    const ok = r.isAnswered && read_ > 0 && read_ >= write
+    // A message in the chat; it runs as a turn of its own once the session is idle. Its
+    // request reads the chat from the cache and so restarts its 60 minutes; what it read
+    // and wrote is recorded at its turn.step, below.
     const at = await $.clock.now()
     await update($, warm, v => {
       const pings = v.pings + 1
-      // Failed: try again in 2 min, while the cache is still alive.
-      const lastRequestAt = ok ? at : v.lastRequestAt + 2 * 60_000
-      return { ...v, on: v.on && pings < MAX_PINGS, lastRequestAt, pings, lastPingAt: at, lastPingOk: ok, lastPingRead: read_, lastPingWrite: write }
+      return {
+        ...v,
+        on: v.on && pings < MAX_PINGS,
+        lastRequestAt: at,
+        pings,
+        lastPingAt: at,
+        lastPingOk: undefined,
+        lastPingRead: undefined,
+        lastPingWrite: undefined,
+      }
     })
+    // Marked before it is sent: the plugin's own prompt.submit hook may not hear it.
+    pingPending = true
+    const r = await $.prompt.submit({ text: PING_TEXT[lang] })
+    if ('drop' in r && r.drop) {
+      pingPending = false
+      await update($, warm, v => ({ ...v, lastPingOk: false, lastPingRead: 0, lastPingWrite: 0 }))
+    }
+  } catch {
+    pingPending = false
   } finally {
     pinging = false
   }
@@ -334,6 +355,7 @@ async function finish($: EngineInterface, id: string, phase: Phase) {
 export const register: Register = (on, options) => {
   // The language comes from the plugin setting `language`, asked at install; changing it reloads the module.
   const l: Lang = options.language === 'de' ? 'de' : 'en'
+  lang = l
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'agentdeck', description: TEXT[l].command })
@@ -391,7 +413,24 @@ export const register: Register = (on, options) => {
     return r
   })
 
+  // Our own ping prompt: the turn it starts is the ping's.
+  on('prompt.submit', async ($, e, next) => {
+    const o = e.origin as { kind?: string; name?: string } | undefined
+    if (o?.kind === 'plugin' && o.name === NAME) pingPending = true
+    return next(e)
+  })
+
+  on('turn.start', async ($, e, next) => {
+    if (!e.agentId && pingPending) {
+      pingPending = false
+      pingTurnId = e.turnId
+    }
+    return next(e)
+  })
+
   on('tool.call', async ($, e, next) => {
+    // The ping's turn uses no tools, whatever the model makes of it.
+    if (pingTurnId && !e.agentId) return { deny: 'Cache ping: no tools.' }
     const id = e.agentId
     if (id) {
       const tool = e.tool as string
@@ -420,8 +459,19 @@ export const register: Register = (on, options) => {
         )
       }
       const t = await $.clock.now()
-      // A real request of the main chat just renewed the cache: ping clock and counter start over.
-      if (!id) await update($, warm, v => ({ ...v, lastRequestAt: t, pings: 0 }))
+      if (!id && e.turnId === pingTurnId) {
+        // The ping's request: it worked when the chat came from the cache.
+        const r_ = u.cache_read_input_tokens
+        const w_ = u.cache_creation_input_tokens
+        await update($, warm, v =>
+          v.lastPingRead !== undefined
+            ? v
+            : { ...v, lastRequestAt: t, lastPingOk: r_ > 0 && r_ >= w_, lastPingRead: r_, lastPingWrite: w_ },
+        )
+      } else if (!id) {
+        // A real request of the main chat just renewed the cache: ping clock and counter start over.
+        await update($, warm, v => ({ ...v, lastRequestAt: t, pings: 0 }))
+      }
       await update($, session, s => {
         const base = s ?? { input: 0, cacheRead: 0, output: 0, countingSince: t }
         return {
@@ -438,6 +488,7 @@ export const register: Register = (on, options) => {
 
   on('turn.complete', async ($, e, next) => {
     const r = await next(e)
+    if (!e.agentId && e.turnId === pingTurnId) pingTurnId = null
     if (e.agentId) {
       const failed = e.reason === 'error' || e.reason === 'refusal' || e.isAborted
       await finish($, e.agentId, failed ? 'failed' : 'done')
@@ -635,7 +686,7 @@ export const register: Register = (on, options) => {
             : w.noReply
     const last =
       wm.lastPingAt !== undefined
-        ? `${w.lastPing} ${clockText(wm.lastPingAt, false, w)}${pingWhat ? ` · ${pingWhat}` : ''} ${wm.lastPingOk ? '✓' : '✗'}`
+        ? `${w.lastPing} ${clockText(wm.lastPingAt, false, w)}${pingWhat ? ` · ${pingWhat}` : ''}${wm.lastPingOk === undefined ? ' …' : wm.lastPingOk ? ' ✓' : ' ✗'}`
         : ''
     const nextIn = Math.max(0, Math.ceil((wm.lastRequestAt + WARM_AFTER_MS - t) / 60_000))
     const warmText = wm.on

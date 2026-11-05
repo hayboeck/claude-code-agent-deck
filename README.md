@@ -62,24 +62,30 @@ Claude Code keeps your chat in Anthropic's prompt cache for 60 minutes after the
 
 So a cold start costs about **20 times** as much as the same message on a warm cache. On a chat with 200k tokens of context that is about 400k token-equivalents instead of 20k, for one message, before Claude has written a word. Anthropic does not publish exactly how the subscription limits count these, but they follow the same direction.
 
-With the switch **On** (shown in green; red **Off** means switched off; the button beside it says *Turn on* or *Turn off*), the mod waits for 50 minutes of quiet and then sends one invisible ping: the chat as Claude Code last sent it plus the line "Reply only with: OK", with no tools. It does not appear in your chat. Reading the chat from the cache restarts the cache's 60 minutes. Every real message resets the countdown too.
+With the switch **On** (shown in green; red **Off** means switched off; the button beside it says *Turn on* or *Turn off*), the mod waits for 50 minutes of quiet and then sends one short message into your chat, in the language you set:
+
+> Cache ping from Agent Deck: reply only with OK, use no tools.
+
+Claude answers *OK*. Its request reads the chat from the cache, which restarts the cache's 60 minutes. While that turn runs, the mod refuses every tool call, so the ping never sets off any work. Every real message resets the countdown too.
+
+**Why a visible message and not an invisible ping.** Up to version 0.9 the mod sent the ping invisibly, as a side request beside the chat. That can keep the cache warm, but Claude Code does not see such a request: it still counted the chat as idle and showed *Prompt cache likely expired (idle 1h 23m)*. In one large chat (285k tokens) it had also prepared a summary in the background about an hour after the last message, and compacted the chat with it when the next message came; the warm cache then went unused. A real message counts as activity for Claude Code too. The cost is one short exchange per ping in your chat.
 
 - **At most 5 pings in a row** (about 4 hours of quiet), then it switches itself off, so it never runs all night.
 - **Cost, measured:** on a chat with a 258k context, 5 pings moved the 5-hour limit by at most one percentage point, and the weekly limit not at all. A cache read costs about a tenth of reading the same text fresh.
-- **Did it work?** The line under the switch says so: *last ping 11:55 · 284k read from cache ✓*. A ✗ with *cache was cold* means the cache had already expired. Claude Code's own note *Prompt cache likely expired (idle 1h 23m)* counts the time since your last message; it does not seem to count the pings, so it can show although the ping above kept the cache warm.
+- **Did it work?** The line under the switch says so: *last ping 11:55 · 284k read from cache ✓*. A ✗ with *cache was cold* means the cache had already expired; *…* means the ping is waiting for Claude to finish what it is doing.
 - Worth it when you come back after a break. If you are done for the day, switch it off.
 
 ## Does it cost tokens?
 
 No. The mod runs on your machine and only reads what Claude Code reports anyway: subagents, tool calls, context size and limits. It adds nothing to your chat or to the requests Claude sends, so having it installed and the pane open costs no tokens and nothing of your limits.
 
-The one exception is **Keep cache warm** while it is **On**: each ping is a real request, and it is sent only after 50 minutes in which you wrote nothing (see the cost above). Switched **Off**, the mod costs nothing at all.
+The one exception is **Keep cache warm** while it is **On**: each ping is a real message with a short answer, and it is sent only after 50 minutes in which you wrote nothing (see the cost above). Switched **Off**, the mod costs nothing at all.
 
 ## What it does not do
 
-- It sends nothing anywhere except the pings above, and those go through Claude Code to the same model.
+- It sends nothing anywhere except the pings above, and those go through Claude Code into your chat, to the same model.
 - It stores nothing on disk. Everything it shows lives in the session and is gone when it ends; the language is a normal plugin setting.
-- It changes nothing in your chat, your files or your settings.
+- It changes nothing in your files or your settings, and adds nothing to your chat but the pings while **Keep cache warm** is on.
 
 ## Requirements
 
