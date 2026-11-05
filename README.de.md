@@ -72,7 +72,7 @@ Claude antwortet mit *OK*. Die Anfrage liest den Chat aus dem Cache, damit begin
 
 **Warum eine sichtbare Nachricht und kein unsichtbarer Ping.** Bis Version 0.9 schickte die Mod den Ping unsichtbar, als Nebenanfrage neben dem Chat. Das kann den Cache warmhalten, aber Claude Code sieht eine solche Anfrage nicht: Es zählte den Chat weiter als untätig und zeigte *Prompt cache likely expired (idle 1h 23m)* an. In einem großen Chat (285k Tokens) hatte es außerdem etwa eine Stunde nach der letzten Nachricht im Hintergrund eine Zusammenfassung vorbereitet und den Chat bei der nächsten Nachricht damit kompaktiert; der warme Cache wurde dann gar nicht genutzt. Eine echte Nachricht zählt auch für Claude Code als Aktivität. Der Preis ist ein kurzer Wortwechsel pro Ping in deinem Chat.
 
-- **Höchstens 5 Pings in Folge** (etwa 4 Stunden Ruhe), dann schaltet es sich selbst aus, damit es nie über Nacht läuft.
+- **Höchstens 5 Pings in Folge** (etwa 4 Stunden), dann schaltet es sich selbst aus, damit es nie über Nacht läuft.
 - **Kosten, gemessen:** Bei einem Chat mit 258k Kontext haben 5 Pings das 5-Stunden-Limit um höchstens einen Prozentpunkt bewegt, das Wochenlimit gar nicht. Aus dem Cache lesen kostet etwa ein Zehntel davon, denselben Text neu zu lesen.
 - **Hat es funktioniert?** Die Zeile unter dem Schalter sagt es: *letzter Ping 11:55 · 284k aus dem Cache ✓*. Ein ✗ mit *Cache war kalt* heißt, dass der Cache schon abgelaufen war; *…* heißt, dass der Ping noch wartet, bis Claude mit dem fertig ist, was es gerade tut.
 - Lohnt sich, wenn du nach einer Pause weitermachst. Bist du für heute fertig, schalte es aus.
