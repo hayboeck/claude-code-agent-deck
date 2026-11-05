@@ -68,6 +68,8 @@ declare module 'claude-code' {
       warm: Shaped<Warm>
       /** Ids of the agents whose steps are unfolded. */
       open: Shaped<string[]>
+      /** The list sections folded shut: 'running', 'ended'. */
+      folded: Shaped<string[]>
     }
   }
 }

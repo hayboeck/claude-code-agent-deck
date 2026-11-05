@@ -18,6 +18,7 @@ const limits = atom({ plugin: 'agent-deck', key: 'limits' } as const, [], { shap
 const session = atom({ plugin: 'agent-deck', key: 'session' } as const, null, { shape: 'session-1' })
 const warm = atom({ plugin: 'agent-deck', key: 'warm' } as const, { on: false, lastRequestAt: 0, pings: 0 }, { shape: 'warm-1' })
 const open = atom({ plugin: 'agent-deck', key: 'open' } as const, [], { shape: 'open-1' })
+const folded = atom({ plugin: 'agent-deck', key: 'folded' } as const, [], { shape: 'folded-1' })
 
 // The prompt cache lives 60 min after the last request: ping once after 50 min of quiet.
 const WARM_AFTER_MS = 50 * 60_000
@@ -522,6 +523,12 @@ export const register: Register = (on, options) => {
   // Per agent: "steps-<id>" folds its step list open or shut, "stop-<id>" stops it.
   on('ui.press', { plugin: NAME }, async ($, e, next) => {
     const el = e.element ?? ''
+    if (el === 'fold-running' || el === 'fold-ended') {
+      // A list section folds shut or open: only its heading stays.
+      const part = el.slice('fold-'.length)
+      await update($, folded, list => (list.includes(part) ? list.filter(x => x !== part) : [...list, part]))
+      return { element: el }
+    }
     if (el.startsWith('steps-')) {
       const id = el.slice('steps-'.length)
       await update($, open, ids => (ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]))
@@ -544,6 +551,7 @@ export const register: Register = (on, options) => {
     // Before the first tick the clock reads 0: take the real time then.
     const t = (await read($, now)) || (await $.clock.now())
     const openIds = await read($, open)
+    const shut = await read($, folded)
     const running = list.filter(a => a.phase === 'running')
     const ended = list.filter(a => a.phase !== 'running').reverse()
 
@@ -715,17 +723,24 @@ export const register: Register = (on, options) => {
       <Box flexDirection="column" minHeight={minHeight}>
         <Box flexDirection="column" flexGrow={1} flexShrink={1}>
           {list.length === 0 ? <Text dimColor>{w.none}</Text> : null}
-          {running.length ? <Text bold>{`${w.running} (${running.length})`}</Text> : null}
-          {running.map(row)}
+          {/* Each section folds with the arrow before its heading; folded, only the heading stays. */}
+          {running.length ? (
+            <Box flexDirection="row" flexWrap="nowrap" columnGap={1} alignItems="center" marginBottom={shut.includes('running') ? 1 : 0}>
+              <Button key="fold-running" plain label={shut.includes('running') ? '▸' : '▾'} onPress={() => undefined} />
+              <Text bold>{`${w.running} (${running.length})`}</Text>
+            </Box>
+          ) : null}
+          {shut.includes('running') ? null : running.map(row)}
           {ended.length ? (
-            <Box flexDirection="row" flexWrap="nowrap" gap={1}>
+            <Box flexDirection="row" flexWrap="nowrap" columnGap={1} alignItems="center" marginBottom={shut.includes('ended') ? 1 : 0}>
+              <Button key="fold-ended" plain label={shut.includes('ended') ? '▸' : '▾'} onPress={() => undefined} />
               <Text bold>{`${w.ended} (${ended.length})`}</Text>
               <Button key="clear" plain onPress={() => undefined}>
                 <Text dimColor>{w.clear}</Text>
               </Button>
             </Box>
           ) : null}
-          {ended.map(row)}
+          {shut.includes('ended') ? null : ended.map(row)}
         </Box>
         <Box flexDirection="column" marginTop={1}>
           <Text wrap="truncate-end">{'─'.repeat(Math.max(10, cols))}</Text>

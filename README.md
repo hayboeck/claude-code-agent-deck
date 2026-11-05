@@ -31,7 +31,7 @@ Answer `y` to add the marketplace, press Enter for the user scope, then pick the
   <img src="docs/agent-deck-dark.png" width="300" alt="The Agent Deck pane in VS Code: a running and a finished subagent, session, usage limits and the keep-cache-warm switch (dark theme)">
 </p>
 
-**Subagents.** One entry per subagent: its task and run time (ticking live), then on one line its steps, tokens used (T.), model and type, and what it is doing right now (the tool and its target: file, command, search pattern); a line too long for the pane ends in …. A turning orange circle means it is working, a green ✔ that it finished, a red ✘ that it stopped early. **▸** folds open the list of its steps (the last 30), **Stop**, on the line below while it runs, ends it, and `clear` removes the finished ones.
+**Subagents.** One entry per subagent: its task and run time (ticking live), then on one line its steps, tokens used (T.), model and type, and what it is doing right now (the tool and its target: file, command, search pattern); a line too long for the pane ends in …. A turning orange circle means it is working, a green ✔ that it finished, a red ✘ that it stopped early. **▸** folds open the list of its steps (the last 30), **Stop**, on the line below while it runs, ends it, and `clear` removes the finished ones. The arrow before *Running* and *Finished* folds the whole section shut, leaving its heading with the count.
 
 **Session.** When this chat started, how full its context is and how many tokens it has used in total.
 
