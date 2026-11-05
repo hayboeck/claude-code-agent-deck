@@ -1,4 +1,4 @@
-# Claude Code Agent Deck
+# <img src="docs/logo.svg" width="40" align="top" alt=""> Claude Code Agent Deck
 
 **English** | [Deutsch](README.de.md)
 
