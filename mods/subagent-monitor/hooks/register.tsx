@@ -59,7 +59,8 @@ const TEXT = {
     starting: 'startet …',
     aborted: 'abgebrochen',
     steps: 'Schritte',
-    tokens: 'Tokens',
+    step: 'Schritt',
+    tokens: 'T.',
     working: 'arbeitet',
     earlier: 'frühere Schritte',
     stop: 'Stopp',
@@ -92,7 +93,8 @@ const TEXT = {
     starting: 'starting …',
     aborted: 'aborted',
     steps: 'steps',
-    tokens: 'tokens',
+    step: 'step',
+    tokens: 'T.',
     working: 'working',
     earlier: 'earlier steps',
     stop: 'Stop',
@@ -494,13 +496,17 @@ export const register: Register = (on, options) => {
     const row = (a: Agent) => {
       const live = a.phase === 'running'
       const time = duration((live ? Math.max(t, a.startedAt) : (a.endedAt ?? a.startedAt)) - a.startedAt)
+      // Order: steps, tokens, model, type; then what a running agent does now
+      // (or "aborted"), last so it is the part cut off when the row is narrow.
       const doing = live
         ? a.tool
           ? `${a.tool}: ${a.detail || '…'}`
           : w.starting
-        : `${a.phase === 'done' ? '' : `${w.aborted} · `}${a.steps} ${w.steps}`
+        : a.phase === 'done'
+          ? ''
+          : w.aborted
       const used = a.context !== undefined ? `${tokens(a.context + (a.output ?? 0), l)} ${w.tokens}` : ''
-      const second = [a.type, a.model, doing, used].filter(Boolean).join(' · ')
+      const second = [`${a.steps} ${a.steps === 1 ? w.step : w.steps}`, used, a.model, a.type, doing].filter(Boolean).join(' · ')
       const history = a.history ?? []
       const isOpen = openIds.includes(a.id)
       const older = a.steps - history.length
@@ -516,17 +522,21 @@ export const register: Register = (on, options) => {
             <Text dimColor={!live}>{time}</Text>
           </Box>
           {/* Info line: the arrow folds the steps open, Stop ends a running agent. */}
-          <Box paddingLeft={2} flexDirection="row" gap={1} alignItems="center">
+          <Box paddingLeft={2} flexDirection="row" gap={1} alignItems="center" overflow="hidden">
             {history.length ? (
-              <Button key={`steps-${a.id}`} plain label={isOpen ? '▾' : '▸'} onPress={() => undefined} />
+              <Box flexShrink={0}>
+                <Button key={`steps-${a.id}`} plain label={isOpen ? '▾' : '▸'} onPress={() => undefined} />
+              </Box>
             ) : null}
-            <Box flexGrow={1} flexShrink={1} minWidth={0}>
+            <Box flexGrow={1} flexShrink={1} minWidth={0} height={1} overflow="hidden">
               <Text dimColor wrap="truncate-end">{second}</Text>
             </Box>
             {live ? (
-              <Button key={`stop-${a.id}`} plain onPress={() => undefined}>
-                {w.stop}
-              </Button>
+              <Box flexShrink={0}>
+                <Button key={`stop-${a.id}`} plain onPress={() => undefined}>
+                  {w.stop}
+                </Button>
+              </Box>
             ) : null}
           </Box>
           {isOpen ? (

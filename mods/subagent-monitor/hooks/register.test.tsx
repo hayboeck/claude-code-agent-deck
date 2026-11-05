@@ -33,7 +33,7 @@ test('a subagent shows with its type and current tool', DE, async ($, on) => {
   for (const surface of ['terminal', 'desktop', 'vscode'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
     expect((await ui.find({ type: 'Text', text: /Dateien durchsuchen/ }))?.text).toBe('Dateien durchsuchen')
-    expect((await ui.find({ type: 'Text', text: /Explore/ }))?.text).toBe('Explore · sonnet · Read: register.tsx')
+    expect((await ui.find({ type: 'Text', text: /Explore/ }))?.text).toBe('1 Schritt · sonnet · Explore · Read: register.tsx')
     await ui.unmount()
   }
 
@@ -71,7 +71,7 @@ test('steps fold open and Stop ends a running subagent', async ($, on) => {
 
   await ui.press({ key: 'stop-a1' })
   expect(stopped).toEqual(['a1'])
-  expect((await ui.find({ type: 'Text', text: /aborted/ }))?.text).toMatch(/aborted · 2 steps/)
+  expect((await ui.find({ type: 'Text', text: /aborted/ }))?.text).toMatch(/^2 steps · haiku · Explore · aborted$/)
   await ui.unmount()
 })
 
@@ -149,5 +149,24 @@ test('an empty session shows a hint', DE, async ($, on) => {
   mock.clock(on)
   const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
   expect((await ui.find({ type: 'Text', text: /^Noch keine/ }))?.text).toBe('Noch keine Subagents in dieser Sitzung.')
+  await ui.unmount()
+})
+
+test('a long info line is cut off, not wrapped', async ($, on) => {
+  mock.clock(on, { now: 1000 })
+  on('command.register', () => ({ value: { command: 'subagents' } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('agent.list', () => ({ value: [] }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('agent.spawn', () => ({ model: 'claude-sonnet-5-5', agentId: 'a1' }))
+  on('tool.call', () => ({ result: {} }))
+  await $.session.start({ cwd: '/', surface: 'vscode', isInteractive: true })
+  await $.agent.spawn({ prompt: 'x', description: 'Search', subagentType: 'general-purpose' })
+  await $.tool.call({ tool: 'Grep', pattern: 'a-very-long-search-pattern-that-never-fits', path: 'C:/a/some/deep/folder', agentId: 'a1' })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'vscode', props: { ...PANE.props, bodyColumns: 40 } })
+  const info = await ui.find({ type: 'Text', text: /^1 step / })
+  expect(info?.text).toMatch(/^1 step · sonnet · general-purpose · Grep/)
+  expect(await ui.find({ type: 'Box', overflow: 'hidden', height: 1 } as never)).toBeDefined()
   await ui.unmount()
 })
