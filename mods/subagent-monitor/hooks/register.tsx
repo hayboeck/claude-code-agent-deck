@@ -627,8 +627,9 @@ export const register: Register = (on, options) => {
 
     // At least as tall as the pane, so the list grows and session and limits sit at the bottom.
     // VS Code and the desktop give the tree no full-height parent and round the pane's height
-    // down to whole rows of a slightly taller line than the tree's: one row more fills it.
-    const minHeight = e.props.scroll.bodyRows + (e.surface === 'terminal' ? 0 : 1)
+    // down to whole rows of a slightly taller line than the tree's: half a row more fills it
+    // (a whole row overshot, and the pane scrolled by a few pixels).
+    const minHeight = e.props.scroll.bodyRows + (e.surface === 'terminal' ? 0 : 0.5)
 
     return (
       <Box flexDirection="column" minHeight={minHeight}>
