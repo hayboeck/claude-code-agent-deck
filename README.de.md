@@ -6,6 +6,8 @@ Ein Seitenpanel für [Claude Code](https://claude.com/claude-code), das zeigt, w
 
 **Optimiert für VS Code.** Es läuft auch im Terminal und in der Desktop-App, abgestimmt und geprüft ist das Layout aber in der Claude-Code-Erweiterung für VS Code.
 
+<img src="docs/overview.png" alt="Das Agent Deck neben einem Claude-Code-Chat in VS Code: ein laufender und ein fertiger Subagent, Sitzung, Nutzungslimits und der Knopf zum Warmhalten des Caches">
+
 ## Installieren
 
 Im Eingabefeld von Claude Code:
