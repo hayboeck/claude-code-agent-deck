@@ -49,6 +49,15 @@ Mit `y` die Mod-Sammlung hinzufügen, mit Enter den Bereich „user“ wählen u
 
 Claude Code hält deinen Chat 60 Minuten nach der letzten Anfrage im Prompt-Cache von Anthropic. Ist der Cache abgelaufen, muss die nächste Nachricht den ganzen Chat neu einlesen. Das kostet viel mehr von deinen Limits als eine Nachricht bei warmem Cache.
 
+**Warum ein Kaltstart so teuer ist.** Eingabe-Tokens kosten nicht alle gleich viel. Nach den API-Preisen von Anthropic, gemessen an einem normalen Eingabe-Token:
+
+| Was mit dem Chat passiert | Preis je Token |
+| --- | --- |
+| aus dem warmen Cache gelesen | 0,1× |
+| neu gelesen und wieder in den Cache geschrieben (Kaltstart, 1-Stunden-Cache) | 2× |
+
+Ein Kaltstart kostet also etwa **20-mal** so viel wie dieselbe Nachricht bei warmem Cache. Bei einem Chat mit 200k Tokens Kontext sind das rund 400k Token-Äquivalente statt 20k, für eine einzige Nachricht, bevor Claude ein Wort geschrieben hat. Wie genau die Abo-Limits diese Tokens zählen, veröffentlicht Anthropic nicht, die Richtung ist aber dieselbe.
+
 Steht es auf **An** (grün angezeigt; rot **Aus** heißt ausgeschaltet; der Knopf daneben sagt *Einschalten* oder *Ausschalten*), wartet die Mod 50 Minuten Ruhe ab und schickt dann einen unsichtbaren Ping: den Chat, wie Claude Code ihn zuletzt gesendet hat, plus die Zeile „Antworte nur mit: OK“, ohne Werkzeuge. Im Chat erscheint nichts. Weil der Chat dabei aus dem Cache gelesen wird, beginnen dessen 60 Minuten von vorn. Jede echte Nachricht setzt den Countdown ebenfalls zurück.
 
 - **Höchstens 5 Pings in Folge** (etwa 4 Stunden Ruhe), dann schaltet es sich selbst aus, damit es nie über Nacht läuft.
