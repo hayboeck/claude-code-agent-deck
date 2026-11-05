@@ -81,6 +81,9 @@ const TEXT = {
     turnOff: 'Ausschalten',
     nextPing: 'nächster Ping in',
     lastPing: 'letzter Ping',
+    fromCache: 'aus dem Cache',
+    cold: 'Cache war kalt, neu geschrieben:',
+    noReply: 'keine Antwort',
   },
   en: {
     locale: 'en-GB',
@@ -115,6 +118,9 @@ const TEXT = {
     turnOff: 'Turn off',
     nextPing: 'next ping in',
     lastPing: 'last ping',
+    fromCache: 'read from cache',
+    cold: 'cache was cold, written afresh:',
+    noReply: 'no reply',
   },
 } as const
 
@@ -282,13 +288,16 @@ async function checkWarm($: EngineInterface, t: number) {
     // A fork: the chat as last sent plus one line, without tools and invisible in the chat.
     // It reads the cache and so restarts its 60 minutes.
     const r = await $.model.fork({ prompt: PING_PROMPT })
-    const ok = r.isAnswered
+    // It worked when the chat came from the cache: more read from it than written to it.
+    const read_ = r.usage?.cache_read_input_tokens ?? 0
+    const write = r.usage?.cache_creation_input_tokens ?? 0
+    const ok = r.isAnswered && read_ > 0 && read_ >= write
     const at = await $.clock.now()
     await update($, warm, v => {
       const pings = v.pings + 1
       // Failed: try again in 2 min, while the cache is still alive.
       const lastRequestAt = ok ? at : v.lastRequestAt + 2 * 60_000
-      return { ...v, on: v.on && pings < MAX_PINGS, lastRequestAt, pings, lastPingAt: at, lastPingOk: ok }
+      return { ...v, on: v.on && pings < MAX_PINGS, lastRequestAt, pings, lastPingAt: at, lastPingOk: ok, lastPingRead: read_, lastPingWrite: write }
     })
   } finally {
     pinging = false
@@ -615,12 +624,23 @@ export const register: Register = (on, options) => {
     ) : null
 
     const wm = await read($, warm)
+    // The last ping on a line of its own, with what it proves: the chat read from the cache.
+    const pingWhat =
+      wm.lastPingRead === undefined
+        ? ''
+        : wm.lastPingOk
+          ? `${tokens(wm.lastPingRead, l)} ${w.fromCache}`
+          : wm.lastPingRead || wm.lastPingWrite
+            ? `${w.cold} ${tokens(wm.lastPingWrite ?? 0, l)}`
+            : w.noReply
     const last =
-      wm.lastPingAt !== undefined ? `${w.lastPing} ${clockText(wm.lastPingAt, false, w)} ${wm.lastPingOk ? '✓' : '✗'}` : ''
+      wm.lastPingAt !== undefined
+        ? `${w.lastPing} ${clockText(wm.lastPingAt, false, w)}${pingWhat ? ` · ${pingWhat}` : ''} ${wm.lastPingOk ? '✓' : '✗'}`
+        : ''
     const nextIn = Math.max(0, Math.ceil((wm.lastRequestAt + WARM_AFTER_MS - t) / 60_000))
     const warmText = wm.on
-      ? [`${w.nextPing} ${nextIn}min`, `${wm.pings}/${MAX_PINGS}`, last].filter(Boolean).join(' · ')
-      : last
+      ? [`${w.nextPing} ${nextIn}min`, `${wm.pings}/${MAX_PINGS}`].join(' · ')
+      : ''
 
     // Light rule between the blocks at the bottom (dim; the top one is strong).
     const lightRule = <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(10, cols))}</Text>
@@ -674,6 +694,7 @@ export const register: Register = (on, options) => {
               </Button>
             </Box>
             {warmText ? <Text dimColor wrap="truncate-end">{warmText}</Text> : null}
+            {last ? <Text dimColor wrap="truncate-end">{last}</Text> : null}
           </Box>
         </Box>
       </Box>

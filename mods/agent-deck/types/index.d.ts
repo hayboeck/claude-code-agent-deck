@@ -53,6 +53,9 @@ export type Warm = {
   pings: number
   lastPingAt?: number
   lastPingOk?: boolean
+  /** Tokens the last ping read from the cache, and wrote to it afresh. */
+  lastPingRead?: number
+  lastPingWrite?: number
 }
 
 declare module 'claude-code' {

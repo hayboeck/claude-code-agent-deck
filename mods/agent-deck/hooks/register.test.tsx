@@ -141,7 +141,27 @@ test('keep warm pings once through a fork after 50 min of quiet', DE, async ($, 
   expect(forks.length).toBe(0)
   await clock.advance(2 * 60_000)
   expect(forks.length).toBe(1)
-  expect((await ui.find({ type: 'Text', text: /letzter Ping/ }))?.text).toMatch(/1\/5 · letzter Ping .* ✓$/)
+  expect((await ui.find({ type: 'Text', text: /nächster Ping/ }))?.text).toMatch(/^nächster Ping in 4\d+min · 1\/5$/)
+  expect((await ui.find({ type: 'Text', text: /letzter Ping/ }))?.text).toMatch(/^letzter Ping \S+ · 50k aus dem Cache ✓$/)
+  await ui.unmount()
+})
+
+test('a ping that finds the cache cold says so', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-11-04T15:00:00Z') })
+  on('command.register', () => ({ value: { command: 'agentdeck' } }))
+  on('agent.list', () => ({ value: [] }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.usage', () => ({
+    value: { startedAt: Date.parse('2026-11-04T14:00:00Z'), context: { window: 200000, tokens: 50000 }, rateLimits: [] },
+  }))
+  on('model.fork', () => ({
+    value: { isAnswered: true, text: 'OK', usage: { input_tokens: 5, output_tokens: 2, cache_read_input_tokens: 3000, cache_creation_input_tokens: 47000 } },
+  }))
+  await $.session.start({ cwd: '/', surface: 'vscode', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
+  await ui.press({ key: 'warm' })
+  await clock.advance(51 * 60_000)
+  expect((await ui.find({ type: 'Text', text: /last ping/ }))?.text).toMatch(/^last ping \S+ · cache was cold, written afresh: 47k ✗$/)
   await ui.unmount()
 })
 
