@@ -184,7 +184,16 @@ function basename(p: string): string {
 }
 
 /** What the agent is working on: the target of its tool call in a few words. */
+/** One line: a multi-line command or script would push the rows apart; … then cuts it. */
+function oneLine(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().slice(0, 300)
+}
+
 function describe(tool: string, a: Record<string, unknown>): string {
+  return oneLine(describeRaw(tool, a))
+}
+
+function describeRaw(tool: string, a: Record<string, unknown>): string {
   const s = (k: string) => (typeof a[k] === 'string' ? (a[k] as string) : '')
   switch (tool) {
     case 'Read':
@@ -400,7 +409,7 @@ export const register: Register = (on, options) => {
     if (!id) return r
     const agent: Agent = {
       id,
-      description: e.description || 'Subagent',
+      description: oneLine(e.description || '') || 'Subagent',
       type: e.subagentType || 'subagent',
       model: shortModel(r.model ?? ''),
       startedAt: await $.clock.now(),
@@ -570,7 +579,7 @@ export const register: Register = (on, options) => {
           ? ''
           : w.aborted
       const used = a.context !== undefined ? `${tokens(a.context + (a.output ?? 0), l)} ${w.tokens}` : ''
-      const second = [`${a.steps} ${a.steps === 1 ? w.step : w.steps}`, used, a.model, a.type, doing].filter(Boolean).join(' · ')
+      const second = oneLine([`${a.steps} ${a.steps === 1 ? w.step : w.steps}`, used, a.model, a.type, doing].filter(Boolean).join(' · '))
       const history = a.history ?? []
       const isOpen = openIds.includes(a.id)
       const older = a.steps - history.length
@@ -580,7 +589,7 @@ export const register: Register = (on, options) => {
             {mark(a)}
             <Box flexGrow={1} flexShrink={1} minWidth={0}>
               <Text bold={live} wrap="truncate-end">
-                {a.description}
+                {oneLine(a.description)}
               </Text>
             </Box>
             <Text dimColor={!live}>{time}</Text>
@@ -608,7 +617,7 @@ export const register: Register = (on, options) => {
               {older > 0 ? <Text dimColor>{`… ${older} ${w.earlier}`}</Text> : null}
               {history.map((s, i) => (
                 <Text key={`s-${a.id}-${i}`} dimColor wrap="truncate-end">
-                  {`${older + i + 1}. ${s.tool}${s.detail ? `: ${s.detail}` : ''}`}
+                  {oneLine(`${older + i + 1}. ${s.tool}${s.detail ? `: ${s.detail}` : ''}`)}
                 </Text>
               ))}
             </Box>

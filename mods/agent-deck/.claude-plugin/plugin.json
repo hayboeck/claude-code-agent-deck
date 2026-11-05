@@ -1,6 +1,6 @@
 {
   "name": "agent-deck",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Claude Code Agent Deck: side pane with your subagents (run time, current tool, tokens, steps, Stop), session context, usage limits and a keep-cache-warm switch (EN/DE); optimized for VS Code",
   "author": { "name": "Manuel Hayböck" },
   "license": "MIT",

@@ -214,3 +214,23 @@ test('a long info line is cut off, not wrapped', async ($, on) => {
   expect(await ui.find({ type: 'Text', wrap: 'truncate-end', text: /^1 step / } as never)).toBeDefined()
   await ui.unmount()
 })
+
+test('a multi-line command stays on one line', async ($, on) => {
+  mock.clock(on, { now: 1000 })
+  on('command.register', () => ({ value: { command: 'agentdeck' } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('agent.list', () => ({ value: [] }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('agent.spawn', () => ({ model: 'claude-opus-5-5', agentId: 'a1' }))
+  on('tool.call', () => ({ result: {} }))
+  await $.session.start({ cwd: '/', surface: 'vscode', isInteractive: true })
+  await $.agent.spawn({ prompt: 'x', description: 'Grade\nanswers', subagentType: 'general-purpose' })
+  await $.tool.call({ tool: 'Bash', command: 'python - <<EOF\nimport re\n\tprint(1)\nEOF', agentId: 'a1' })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
+  expect((await ui.find({ type: 'Text', text: /^Grade/ }))?.text).toBe('Grade answers')
+  expect((await ui.find({ type: 'Text', text: /^1 step / }))?.text).toBe('1 step · opus · general-purpose · Bash: python - <<EOF import re print(1) EOF')
+  await ui.press({ key: 'steps-a1' })
+  expect((await ui.find({ type: 'Text', text: /^1\. / }))?.text).toBe('1. Bash: python - <<EOF import re print(1) EOF')
+  await ui.unmount()
+})
