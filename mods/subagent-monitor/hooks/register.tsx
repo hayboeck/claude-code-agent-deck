@@ -527,7 +527,7 @@ export const register: Register = (on, options) => {
           </Box>
           {/* Info line: the arrow folds the steps open; the text is cut with … rather than
               wrapped (a fixed height or hidden overflow makes VS Code stack the row). */}
-          <Box paddingLeft={2} flexDirection="row" gap={1} alignItems="center">
+          <Box paddingLeft={2} flexDirection="row" columnGap={1} alignItems="center">
             {history.length ? (
               <Button key={`steps-${a.id}`} plain label={isOpen ? '▾' : '▸'} onPress={() => undefined} />
             ) : null}
@@ -656,7 +656,8 @@ export const register: Register = (on, options) => {
           ) : null}
           <Box flexDirection="column">
             {lightRule}
-            <Box flexDirection="row" gap={1}>
+            {/* columnGap, not gap: gap also spaces downward, which VS Code drew as an empty line. */}
+            <Box flexDirection="row" columnGap={1} alignItems="center">
               <Box flexGrow={1} flexShrink={1} minWidth={0}>
                 <Text>{w.warm}</Text>
               </Box>
