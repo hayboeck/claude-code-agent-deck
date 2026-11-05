@@ -516,7 +516,7 @@ export const register: Register = (on, options) => {
       const older = a.steps - history.length
       return (
         <Box key={a.id} flexDirection="column" marginBottom={1}>
-          <Box flexDirection="row" gap={1} alignItems="center">
+          <Box flexDirection="row" flexWrap="nowrap" gap={1} alignItems="center">
             {mark(a)}
             <Box flexGrow={1} flexShrink={1} minWidth={0}>
               <Text bold={live} wrap="truncate-end">
@@ -527,7 +527,7 @@ export const register: Register = (on, options) => {
           </Box>
           {/* Info line: the arrow folds the steps open; the text is cut with … rather than
               wrapped (a fixed height or hidden overflow makes VS Code stack the row). */}
-          <Box paddingLeft={2} flexDirection="row" columnGap={1} alignItems="center">
+          <Box paddingLeft={2} flexDirection="row" flexWrap="nowrap" columnGap={1} alignItems="center">
             {history.length ? (
               <Button key={`steps-${a.id}`} plain label={isOpen ? '▾' : '▸'} onPress={() => undefined} />
             ) : null}
@@ -537,7 +537,7 @@ export const register: Register = (on, options) => {
           </Box>
           {/* Stop sits on its own line right below, for a running agent only. */}
           {live ? (
-            <Box paddingLeft={2} flexDirection="row">
+            <Box paddingLeft={2} flexDirection="row" flexWrap="nowrap">
               <Button key={`stop-${a.id}`} plain onPress={() => undefined}>
                 {w.stop}
               </Button>
@@ -574,7 +574,7 @@ export const register: Register = (on, options) => {
       const reset = resetText(lim.resetsAt, t, lim.kind !== 'five_hour', w)
       return (
         <Box key={`limit-${lim.kind}`} flexDirection="column" marginTop={i ? 1 : 0}>
-          <Box flexDirection="row" gap={1}>
+          <Box flexDirection="row" flexWrap="nowrap" gap={1}>
             <Box flexGrow={1} flexShrink={1} minWidth={0}>
               <Text>{label}</Text>
             </Box>
@@ -587,7 +587,7 @@ export const register: Register = (on, options) => {
     }
 
     const pair = (key: string, label: string, value: string) => (
-      <Box key={key} flexDirection="row" gap={1}>
+      <Box key={key} flexDirection="row" flexWrap="nowrap" gap={1}>
         <Box flexGrow={1} flexShrink={1} minWidth={0}>
           <Text dimColor wrap="truncate-end">{label}</Text>
         </Box>
@@ -625,17 +625,20 @@ export const register: Register = (on, options) => {
     // Light rule between the blocks at the bottom (dim; the top one is strong).
     const lightRule = <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(10, cols))}</Text>
 
-    // At least as tall as the pane, so the list grows and session and limits sit at the bottom.
-    const minHeight = e.props.scroll.bodyRows
+    // As tall as the pane, so the list grows and session and limits sit at the bottom. The
+    // terminal counts rows; VS Code and the desktop round the pane's height down to whole rows
+    // (an empty strip under the last row), but hold the tree in a full-height flex column, so
+    // there the tree just grows into it.
+    const minHeight = e.surface === 'terminal' ? e.props.scroll.bodyRows : undefined
 
     return (
-      <Box flexDirection="column" minHeight={minHeight}>
+      <Box flexDirection="column" flexGrow={1} minHeight={minHeight}>
         <Box flexDirection="column" flexGrow={1} flexShrink={1}>
           {list.length === 0 ? <Text dimColor>{w.none}</Text> : null}
           {running.length ? <Text bold>{`${w.running} (${running.length})`}</Text> : null}
           {running.map(row)}
           {ended.length ? (
-            <Box flexDirection="row" gap={1}>
+            <Box flexDirection="row" flexWrap="nowrap" gap={1}>
               <Text bold>{`${w.ended} (${ended.length})`}</Text>
               <Button key="clear" plain onPress={() => undefined}>
                 <Text dimColor>{w.clear}</Text>
@@ -657,7 +660,7 @@ export const register: Register = (on, options) => {
           <Box flexDirection="column">
             {lightRule}
             {/* columnGap, not gap: gap also spaces downward, which VS Code drew as an empty line. */}
-            <Box flexDirection="row" columnGap={1} alignItems="center">
+            <Box flexDirection="row" flexWrap="nowrap" columnGap={1} alignItems="center">
               <Box flexGrow={1} flexShrink={1} minWidth={0}>
                 <Text>{w.warm}</Text>
               </Box>
