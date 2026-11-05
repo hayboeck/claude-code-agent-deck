@@ -167,6 +167,6 @@ test('a long info line is cut off, not wrapped', async ($, on) => {
   const ui = await $.ui.mount({ ...PANE, surface: 'vscode', props: { ...PANE.props, bodyColumns: 40 } })
   const info = await ui.find({ type: 'Text', text: /^1 step / })
   expect(info?.text).toMatch(/^1 step · sonnet · general-purpose · Grep/)
-  expect(await ui.find({ type: 'Box', overflow: 'hidden', height: 1 } as never)).toBeDefined()
+  expect(await ui.find({ type: 'Text', wrap: 'truncate-end', text: /^1 step / } as never)).toBeDefined()
   await ui.unmount()
 })

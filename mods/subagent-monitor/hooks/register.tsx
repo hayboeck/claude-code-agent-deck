@@ -440,25 +440,29 @@ export const register: Register = (on, options) => {
     const t = await $.clock.now()
     // Switching on counts the quiet from now when no request has been seen yet.
     await update($, warm, v => ({ ...v, on: !v.on, pings: 0, lastRequestAt: v.lastRequestAt || t }))
-    return next(e)
+    return { element: 'warm' }
   })
 
   on('ui.press', { plugin: NAME, element: 'clear' }, async ($, e, next) => {
     await update($, agents, list => list.filter(a => a.phase === 'running'))
-    return next(e)
+    return { element: 'clear' }
   })
 
+  // The presses are answered here, not passed on to the Button's (empty) onPress: the
+  // redraw a press causes can drop that Button's handle before the chain reaches it.
   // Per agent: "steps-<id>" folds its step list open or shut, "stop-<id>" stops it.
   on('ui.press', { plugin: NAME }, async ($, e, next) => {
     const el = e.element ?? ''
     if (el.startsWith('steps-')) {
       const id = el.slice('steps-'.length)
       await update($, open, ids => (ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]))
+      return { element: el }
     } else if (el.startsWith('stop-')) {
       const id = el.slice('stop-'.length)
       // A background subagent is a task under its agent id; TaskStop ends it as /tasks would.
       await $.tool.call({ tool: 'TaskStop', task_id: id } as never).catch(() => undefined)
       await finish($, id, 'failed')
+      return { element: el }
     }
     return next(e)
   })
@@ -521,24 +525,24 @@ export const register: Register = (on, options) => {
             </Box>
             <Text dimColor={!live}>{time}</Text>
           </Box>
-          {/* Info line: the arrow folds the steps open, Stop ends a running agent. */}
-          <Box paddingLeft={2} flexDirection="row" gap={1} alignItems="center" overflow="hidden">
+          {/* Info line: the arrow folds the steps open; the text is cut with … rather than
+              wrapped (a fixed height or hidden overflow makes VS Code stack the row). */}
+          <Box paddingLeft={2} flexDirection="row" gap={1} alignItems="center">
             {history.length ? (
-              <Box flexShrink={0}>
-                <Button key={`steps-${a.id}`} plain label={isOpen ? '▾' : '▸'} onPress={() => undefined} />
-              </Box>
+              <Button key={`steps-${a.id}`} plain label={isOpen ? '▾' : '▸'} onPress={() => undefined} />
             ) : null}
-            <Box flexGrow={1} flexShrink={1} minWidth={0} height={1} overflow="hidden">
+            <Box flexGrow={1} flexShrink={1} minWidth={0}>
               <Text dimColor wrap="truncate-end">{second}</Text>
             </Box>
-            {live ? (
-              <Box flexShrink={0}>
-                <Button key={`stop-${a.id}`} plain onPress={() => undefined}>
-                  {w.stop}
-                </Button>
-              </Box>
-            ) : null}
           </Box>
+          {/* Stop sits on its own line right below, for a running agent only. */}
+          {live ? (
+            <Box paddingLeft={2} flexDirection="row">
+              <Button key={`stop-${a.id}`} plain onPress={() => undefined}>
+                {w.stop}
+              </Button>
+            </Box>
+          ) : null}
           {isOpen ? (
             <Box paddingLeft={4} flexDirection="column">
               {older > 0 ? <Text dimColor>{`… ${older} ${w.earlier}`}</Text> : null}
