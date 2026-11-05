@@ -26,7 +26,11 @@ Mit `y` die Mod-Sammlung hinzufügen, mit Enter den Bereich „user“ wählen u
 
 ## Was das Panel zeigt
 
-<img src="docs/agent-deck.png" width="320" alt="Das Agent Deck in VS Code: ein laufender und ein fertiger Subagent, Sitzung, Nutzungslimits und der Knopf zum Warmhalten des Caches">
+<p>
+  <img src="docs/agent-deck.png" width="300" alt="Das Agent Deck in VS Code: ein laufender und ein fertiger Subagent, Sitzung, Nutzungslimits und der Knopf zum Warmhalten des Caches (helles Design)">
+  <img src="docs/agent-deck-dark.png" width="300" alt="Das Agent Deck in VS Code: ein laufender und ein fertiger Subagent, Sitzung, Nutzungslimits und der Knopf zum Warmhalten des Caches (dunkles Design)">
+</p>
+
 **Subagents.** Ein Eintrag pro Subagent: Aufgabe und Laufzeit (zählt live mit), darunter in einer Zeile Schritte, verbrauchte Tokens (T.), Modell und Typ sowie was er gerade tut (Werkzeug und Ziel: Datei, Befehl, Suchmuster); ist die Zeile zu lang fürs Panel, endet sie mit …. Ein sich drehender orangener Kreis heißt „arbeitet“, ein grünes ✔ „fertig“, ein rotes ✘ „vorzeitig abgebrochen“. **▸** klappt die Liste seiner Schritte auf (die letzten 30), **Stopp**, darunter solange er läuft, hält ihn an, und `leeren` entfernt die fertigen.
 
 **Sitzung.** Wann dieser Chat begonnen hat, wie voll sein Kontext ist und wie viele Tokens er insgesamt verbraucht hat.
