@@ -262,3 +262,49 @@ test('running and finished fold shut and open', async ($, on) => {
   expect(await ui.find({ type: 'Text', text: 'Still running' })).toBeDefined()
   await ui.unmount()
 })
+
+test('a quiet chat takes newer limits and the shrunk context from the others', DE, async ($, on) => {
+  const t0 = Date.parse('2026-11-04T15:00:00Z')
+  const clock = mock.clock(on, { now: t0 })
+  // What another chat left 15 min ago; this chat's own engine has no limits yet.
+  let shared: unknown = { at: t0 - 15 * 60_000, limits: [{ kind: 'five_hour', percentUsed: 67, resetsAt: '2026-11-04T17:10:00Z' }] }
+  on('store.get', (_, e) => ({ value: e.key === 'limits' ? shared : undefined }))
+  on('store.set', () => ({ value: undefined }))
+  let ctx = 504000
+  on('command.register', () => ({ value: { command: 'agentdeck' } }))
+  on('agent.list', () => ({ value: [] }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.usage', () => ({
+    value: { startedAt: t0 - 3600_000, context: { window: 1_000_000, tokens: ctx }, rateLimits: [] },
+  }))
+  await $.session.start({ cwd: '/', surface: 'vscode', isInteractive: true })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
+  expect((await ui.find({ type: 'Text', text: /^67/ }))?.text).toBe('67 %')
+  expect((await ui.find({ type: 'Text', text: /^Stand / }))?.text).toMatch(/^Stand \d\d:\d\d$/)
+  expect((await ui.find({ type: 'Text', text: /^504k/ }))?.text).toBe('504k von 1,00 M (50 %)')
+
+  // Another chat got a response; this one was compacted. Within one quiet tick both show.
+  shared = { at: t0 + 5000, limits: [{ kind: 'five_hour', percentUsed: 75, resetsAt: '2026-11-04T17:10:00Z' }] }
+  ctx = 20000
+  await clock.advance(30_000)
+  expect((await ui.find({ type: 'Text', text: /^75/ }))?.text).toBe('75 %')
+  expect(await ui.find({ type: 'Text', text: /^Stand / })).toBeUndefined()
+  expect((await ui.find({ type: 'Text', text: /^20k/ }))?.text).toBe('20k von 1,00 M (2 %)')
+  await ui.unmount()
+})
+
+test('a window past its reset shows 0 % and when it was reset', DE, async ($, on) => {
+  mock.clock(on, { now: Date.parse('2026-11-04T15:00:00Z') })
+  mock.store(on)
+  on('session.measure', (_, e) => ({ changed: e.changed }))
+  await $.session.measure({
+    ...MEASURE,
+    rateLimits: [{ kind: 'five_hour', percentUsed: 67, resetsAt: '2026-11-04T14:00:00Z' }],
+    changed: ['rateLimits'],
+  })
+  const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
+  expect((await ui.find({ type: 'Text', text: /^0 %/ }))?.text).toBe('0 %')
+  expect((await ui.find({ type: 'Text', text: /^zurückgesetzt um/ }))?.text).toMatch(/^zurückgesetzt um \d\d:\d\d$/)
+  await ui.unmount()
+})

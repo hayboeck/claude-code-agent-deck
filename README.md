@@ -37,7 +37,7 @@ Answer `y` to add the marketplace, press Enter for the user scope, then pick the
 
 **Session.** When this chat started, how full its context is and how many tokens it has used in total.
 
-**Usage limits.** Your subscription's 5-hour and weekly limits as Claude Code reports them, with the time each one resets.
+**Usage limits.** Your subscription's 5-hour and weekly limits as Claude Code reports them, with the time each one resets. Claude Code only learns the limits with a response, so all chats share the newest figures and a quiet chat does not show old ones. When they are more than 10 minutes old, *as of 11:42* says so; a window past its reset shows 0 % and *reset at*. The context is read again every 30 seconds, so it follows a `/compact` too.
 
 **Language.** English or German, set when you install the mod; a change reloads the pane at once.
 

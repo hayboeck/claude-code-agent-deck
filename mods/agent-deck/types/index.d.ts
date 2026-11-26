@@ -64,6 +64,8 @@ declare module 'claude-code' {
       agents: Shaped<Agent[]>
       now: number
       limits: Shaped<RateLimit[]>
+      /** When the limits came from a response (ms since 1970), of this chat or another; 0 = unknown. */
+      limitsAt: number
       session: Shaped<SessionInfo | null>
       warm: Shaped<Warm>
       /** Ids of the agents whose steps are unfolded. */

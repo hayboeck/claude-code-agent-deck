@@ -37,7 +37,7 @@ Mit `y` die Mod-Sammlung hinzufügen, mit Enter den Bereich „user“ wählen u
 
 **Sitzung.** Wann dieser Chat begonnen hat, wie voll sein Kontext ist und wie viele Tokens er insgesamt verbraucht hat.
 
-**Nutzungslimits.** Das 5-Stunden- und das Wochenlimit deines Abos, wie Claude Code sie meldet, jeweils mit dem Zeitpunkt des Resets.
+**Nutzungslimits.** Das 5-Stunden- und das Wochenlimit deines Abos, wie Claude Code sie meldet, jeweils mit dem Zeitpunkt des Resets. Claude Code erfährt die Limits nur mit einer Antwort; damit ein ruhiger Chat nicht alte Zahlen zeigt, teilen sich alle Chats den neuesten Stand. Ist er älter als 10 Minuten, steht daneben *Stand 11:42*; ein Fenster nach seinem Reset zeigt 0 % und *zurückgesetzt um*. Den Kontext liest das Panel alle 30 Sekunden neu, also auch nach `/compact`.
 
 **Sprache.** Englisch oder Deutsch, gewählt beim Installieren; eine Änderung lädt das Panel sofort neu.
 

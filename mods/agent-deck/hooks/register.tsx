@@ -15,6 +15,12 @@ const POLL_MS = 3000
 const agents = atom({ plugin: 'agent-deck', key: 'agents' } as const, [], { shape: 'agents-1' })
 const now = atom({ plugin: 'agent-deck', key: 'now' } as const, 0)
 const limits = atom({ plugin: 'agent-deck', key: 'limits' } as const, [], { shape: 'limits-1' })
+// When those limits came from a response (this chat's or another's, shared through $.store); 0 = unknown.
+const limitsAt = atom({ plugin: 'agent-deck', key: 'limitsAt' } as const, 0)
+// The newest limits any chat has seen: only responses bring them, so a quiet chat takes them from the others.
+const STORE_LIMITS = 'limits'
+// Older than this, the heading says from when they are.
+const LIMITS_STALE_MS = 10 * 60_000
 const session = atom({ plugin: 'agent-deck', key: 'session' } as const, null, { shape: 'session-1' })
 const warm = atom({ plugin: 'agent-deck', key: 'warm' } as const, { on: false, lastRequestAt: 0, pings: 0 }, { shape: 'warm-1' })
 const open = atom({ plugin: 'agent-deck', key: 'open' } as const, [], { shape: 'open-1' })
@@ -84,6 +90,8 @@ const TEXT = {
     seven_day: 'Woche (7 Tage)',
     spend_limit: 'Ausgabenlimit',
     reset: 'Reset',
+    wasReset: 'zurückgesetzt um',
+    asOf: 'Stand',
     warm: 'Cache warmhalten',
     on: 'An',
     off: 'Aus',
@@ -121,6 +129,8 @@ const TEXT = {
     seven_day: 'Week (7 days)',
     spend_limit: 'Spend limit',
     reset: 'Resets',
+    wasReset: 'reset at',
+    asOf: 'as of',
     warm: 'Keep cache warm',
     on: 'On',
     off: 'Off',
@@ -254,6 +264,46 @@ function copyLimit(l: RateLimit): RateLimit {
   return l.resetsAt ? { kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt } : { kind: l.kind, percentUsed: l.percentUsed }
 }
 
+type StoredLimits = { at: number; limits: RateLimit[] }
+
+async function storedLimits($: EngineInterface): Promise<StoredLimits | null> {
+  const v = (await $.store.get(STORE_LIMITS).catch(() => undefined)) as StoredLimits | undefined
+  return v && typeof v.at === 'number' && Array.isArray(v.limits) && v.limits.length ? v : null
+}
+
+/** Limits fresh from a response: shown here and left for the other chats. */
+async function shareLimits($: EngineInterface, list: readonly RateLimit[]) {
+  if (!list.length) return
+  const copy = list.map(copyLimit)
+  const t = await $.clock.now()
+  await update($, limits, () => copy)
+  await update($, limitsAt, () => t)
+  await $.store.set(STORE_LIMITS, { at: t, limits: copy }).catch(() => undefined)
+}
+
+/**
+ * While the chat is quiet: newer limits another chat has seen, and the context as the
+ * status line has it now (after a /compact too, which sends no response of this chat's).
+ */
+async function refresh($: EngineInterface) {
+  const s = await storedLimits($)
+  if (s && s.at > (await read($, limitsAt))) {
+    await update($, limits, () => s.limits.map(copyLimit))
+    await update($, limitsAt, () => s.at)
+  }
+  try {
+    const u = await $.session.usage()
+    const t = await $.clock.now()
+    await update($, session, v => ({
+      ...(v ?? { input: 0, cacheRead: 0, output: 0, countingSince: t }),
+      ...contextFields(u.context),
+      ...(u.cost ? { usd: u.cost.usd } : {}),
+    }))
+  } catch {
+    // Before the first response: nothing to show yet.
+  }
+}
+
 const SPIN = ['◐', '◓', '◑', '◒']
 const SPINNER_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12">' +
@@ -295,6 +345,7 @@ async function tick($: EngineInterface, running: boolean) {
   await update($, now, () => t)
   ticks++
   if (running && ticks % (POLL_MS / TICK_MS) === 0) await poll($)
+  if (!running || ticks % (IDLE_TICK_MS / TICK_MS) === 0) await refresh($)
   await checkWarm($, t)
 }
 
@@ -373,7 +424,12 @@ export const register: Register = (on, options) => {
     const r = await next(e)
     try {
       const u = await $.session.usage()
-      if (u.rateLimits.length) await update($, limits, () => u.rateLimits.map(copyLimit))
+      // The newest any chat has seen; else this session's own, of unknown age (0).
+      const s = await storedLimits($)
+      if (s) {
+        await update($, limits, () => s.limits.map(copyLimit))
+        await update($, limitsAt, () => s.at)
+      } else if (u.rateLimits.length) await update($, limits, () => u.rateLimits.map(copyLimit))
       const t = await $.clock.now()
       await update($, session, s => ({
         ...(s ?? { input: 0, cacheRead: 0, output: 0, countingSince: t }),
@@ -389,7 +445,7 @@ export const register: Register = (on, options) => {
 
   // After every response, and when a limit moves a whole percentage point.
   on('session.measure', async ($, e, next) => {
-    if (e.changed.includes('rateLimits')) await update($, limits, () => e.rateLimits.map(copyLimit))
+    if (e.changed.includes('rateLimits')) await shareLimits($, e.rateLimits)
     const t = await $.clock.now()
     await update($, session, s => ({
       ...(s ?? { input: 0, cacheRead: 0, output: 0, countingSince: t }),
@@ -397,6 +453,16 @@ export const register: Register = (on, options) => {
       ...(e.cost ? { usd: e.cost.usd } : {}),
     }))
     return next(e)
+  })
+
+  // A /compact shrinks the context without a response of the chat's: read it afresh.
+  on('session.compact', async ($, e, next) => {
+    const r = await next(e)
+    // The engine puts the shorter chat in place after the hooks: read it a moment later.
+    $.clock.after(3000, () => {
+      void refresh($).catch(() => undefined)
+    })
+    return r
   })
 
   on('command.run', { command: 'agentdeck' }, async $ => {
@@ -635,6 +701,7 @@ export const register: Register = (on, options) => {
     }
 
     const windows = await read($, limits)
+    const windowsAt = await read($, limitsAt)
     const cols = e.props.bodyColumns
 
     const bar = (pct: number, label: string, color: string) =>
@@ -645,10 +712,15 @@ export const register: Register = (on, options) => {
       )
 
     const limit = (lim: RateLimit, i: number) => {
-      const pct = lim.percentUsed
+      // A window past its reset starts afresh (at 0) with the next request, of any chat.
+      const resetAt = lim.resetsAt ? Date.parse(lim.resetsAt) : NaN
+      const isOver = !Number.isNaN(resetAt) && resetAt <= t
+      const pct = isOver ? 0 : lim.percentUsed
       const label = (w as Record<string, string>)[lim.kind] ?? lim.kind
       // The 5h window always ends today or early tomorrow: the time is enough.
-      const reset = resetText(lim.resetsAt, t, lim.kind !== 'five_hour', w)
+      const reset = isOver
+        ? `${w.wasReset} ${clockText(resetAt, lim.kind !== 'five_hour', w)}`
+        : resetText(lim.resetsAt, t, lim.kind !== 'five_hour', w)
       return (
         <Box key={`limit-${lim.kind}`} flexDirection="column" marginTop={i ? 1 : 0}>
           <Box flexDirection="row" flexWrap="nowrap" gap={1}>
@@ -658,7 +730,7 @@ export const register: Register = (on, options) => {
             <Text bold>{`${Math.round(pct)} %`}</Text>
           </Box>
           {bar(pct, label, limitColor(pct))}
-          {reset ? <Text dimColor wrap="truncate-end">{`${w.reset} ${reset}`}</Text> : null}
+          {reset ? <Text dimColor wrap="truncate-end">{isOver ? reset : `${w.reset} ${reset}`}</Text> : null}
         </Box>
       )
     }
@@ -711,13 +783,30 @@ export const register: Register = (on, options) => {
       : ''
 
     // Light rule between the blocks at the bottom (dim; the top one is strong).
-    const lightRule = <Text dimColor wrap="truncate-end">{'─'.repeat(Math.max(10, cols))}</Text>
+    // A drawn line where the surface has Svg: the desktop app's "─" is wider than a column, so a
+    // row of them ran past the edge and ended in "…". Wider than any pane, it is cut to the slot.
+    const rule = (key: string, color: string, dim: boolean) =>
+      Svg ? (
+        <Svg
+          key={key}
+          source={
+            `<svg xmlns="http://www.w3.org/2000/svg" width="${cols * 12}" height="1" viewBox="0 0 ${cols * 12} 1" preserveAspectRatio="none">` +
+            `<rect width="${cols * 12}" height="1" fill="${color}"/></svg>`
+          }
+          alt="—"
+          height={1}
+        />
+      ) : (
+        <Text key={key} dimColor={dim} wrap="truncate-end">{'─'.repeat(Math.max(10, cols))}</Text>
+      )
+    const lightRule = rule('light', '#8888', true)
 
     // At least as tall as the pane, so the list grows and session and limits sit at the bottom.
-    // VS Code and the desktop give the tree no full-height parent and round the pane's height
-    // down to whole rows of a slightly taller line than the tree's: half a row more fills it
-    // (a whole row overshot, and the pane scrolled by a few pixels).
-    const minHeight = e.props.scroll.bodyRows + (e.surface === 'terminal' ? 0 : 0.5)
+    // VS Code gives the tree no full-height parent and rounds the pane's height down to whole
+    // rows of a slightly taller line than the tree's: half a row more fills it (a whole row
+    // overshot, and the pane scrolled by a few pixels). The desktop app's rows fit exactly:
+    // there the half row was too much and the pane scrolled by a millimetre.
+    const minHeight = e.props.scroll.bodyRows + (e.surface === 'vscode' ? 0.5 : 0)
 
     return (
       <Box flexDirection="column" minHeight={minHeight}>
@@ -743,12 +832,19 @@ export const register: Register = (on, options) => {
           {shut.includes('ended') ? null : ended.map(row)}
         </Box>
         <Box flexDirection="column" marginTop={1}>
-          <Text wrap="truncate-end">{'─'.repeat(Math.max(10, cols))}</Text>
+          {rule('main', '#888', false)}
           {info}
           {windows.length ? (
             <Box flexDirection="column">
               {info ? lightRule : null}
-              <Text bold>{w.limits}</Text>
+              <Box flexDirection="row" flexWrap="nowrap" columnGap={1}>
+                <Box flexGrow={1} flexShrink={1} minWidth={0}>
+                  <Text bold wrap="truncate-end">{w.limits}</Text>
+                </Box>
+                {windowsAt && t - windowsAt > LIMITS_STALE_MS ? (
+                  <Text dimColor>{`${w.asOf} ${clockText(windowsAt, t - windowsAt > 20 * 3600_000, w)}`}</Text>
+                ) : null}
+              </Box>
               {windows.map(limit)}
             </Box>
           ) : null}
